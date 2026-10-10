@@ -2,6 +2,8 @@
 
 面向糖尿病健康知识问答的毕业设计代码，包含医学实体/关系抽取、Neo4j 知识图谱查询、Faiss 文本检索与大语言模型问答服务。
 
+<video src="https://www.bilibili.com/video/BV1PTpg6ZE7r/" controls="controls" width="100%"></video>
+
 ## Repository layout
 
 - `ner-re/`: MacBERT/CRF、Chinese-RoBERTa 和 QLoRA 实验代码。
