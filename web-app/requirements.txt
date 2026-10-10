@@ -1,0 +1,27 @@
+# Web 框架
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+
+# 数据验证
+pydantic>=2.0.0
+
+# 中文分词
+jieba>=0.42.1
+
+# 图数据库
+neo4j>=5.0.0
+
+# 向量检索
+faiss-cpu>=1.7.4
+numpy>=1.24.0
+
+# 大语言模型 API
+openai>=1.12.0
+dashscope>=1.14.0
+
+# 环境变量管理
+python-dotenv>=1.0.0
+
+# 评估指标 (可选)
+bert-score>=0.3.13

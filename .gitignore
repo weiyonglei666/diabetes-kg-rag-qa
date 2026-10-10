@@ -1,0 +1,26 @@
+# Secrets and local configuration
+.env
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.idea/
+.ipynb_checkpoints/
+
+# Local data, indexes, models and outputs
+data/raw/
+data/processed/
+**/diakg_data/
+**/diakg_faiss_index/
+**/*output*/
+**/*checkpoint*/
+*.safetensors
+*.pt
+*.bin
+*.faiss
+*.csv
+*.xlsx

@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>图谱模式 - 基于知识图谱的糖尿病问答系统</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+  <style>
+    * { box-sizing: border-box; }
+
+    .fa-solid,
+    .fa-regular,
+    .fa-brands {
+      line-height: 1;
+    }
+
+    .stat-icon i,
+    .search-btn i,
+    .sidebar-search i,
+    .empty-icon i,
+    .close-btn i,
+    .toggle-icon i {
+      pointer-events: none;
+    }
+    :root {
+      --bg: #f6f9fc;
+      --panel: rgba(255,255,255,0.86);
+      --panel-strong: rgba(255,255,255,0.96);
+      --border: #e6ecf5;
+      --text: #1f2937;
+      --muted: #718198;
+      --blue: #4a8ef7;
+      --green: #20c7a1;
+      --orange: #ff9b72;
+      --purple: #8b7cff;
+      --danger: #ef4444;
+      --shadow: 0 10px 30px rgba(40,72,120,0.08);
+      --shadow-soft: 0 4px 14px rgba(65,86,128,0.08);
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      /*zoom: 90%;*/
+      font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 12%, rgba(74,142,247,0.10), transparent 20%),
+        radial-gradient(circle at 88% 18%, rgba(32,199,161,0.08), transparent 20%),
+        radial-gradient(circle at 82% 76%, rgba(255,155,114,0.08), transparent 20%),
+        linear-gradient(180deg, #fbfdff 0%, #f4f7fb 100%);
+    }
+
+    .page {
+      width: 100%;
+      min-height: 100vh;
+      padding: 18px;
+      display: grid;
+      grid-template-rows: auto auto 1fr;
+      gap: 16px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .stat-card {
+      min-height: 96px;
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .stat-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -20px -20px auto;
+      width: 88px;
+      height: 88px;
+      border-radius: 50%;
+      opacity: 0.12;
+      pointer-events: none;
+    }
+
+    .stat-card.blue::after { background: var(--blue); }
+    .stat-card.green::after { background: var(--green); }
+    .stat-card.orange::after { background: var(--orange); }
+    .stat-card.purple::after { background: var(--purple); }
+
+    .stat-main { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .stat-icon {
+      width: 54px; height: 54px; border-radius: 18px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; font-weight: 700;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5);
+      flex-shrink: 0;
+    }
+    .blue .stat-icon { background: rgba(74,142,247,0.12); color: var(--blue); }
+    .green .stat-icon { background: rgba(32,199,161,0.12); color: var(--green); }
+    .orange .stat-icon { background: rgba(255,155,114,0.12); color: var(--orange); }
+    .purple .stat-icon { background: rgba(139,124,255,0.12); color: var(--purple); }
+
+    .stat-title { font-size: 14px; font-weight: 700; color: #526176; margin-bottom: 6px; }
+    .stat-value { font-size: 24px; line-height: 1; font-weight: 900; }
+    .stat-meta { font-size: 12px; color: #7a879a; text-align: right; line-height: 1.7; }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 200px 140px 140px 140px 140px 1fr 160px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .control, .search-box {
+      height: 52px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      box-shadow: var(--shadow-soft);
+      display: flex;
+      align-items: center;
+      backdrop-filter: blur(16px);
+    }
+
+    .control {
+      padding: 0 14px;
+      justify-content: space-between;
+      color: #4c5c73;
+      font-size: 14px;
+      font-weight: 800;
+      gap: 10px;
+    }
+
+    .control button,
+    .control select,
+    .control input,
+    .search-box input,
+    .search-box button,
+    .mini-btn {
+      border: none;
+      outline: none;
+      background: transparent;
+      font: inherit;
+      color: inherit;
+    }
+
+    .control select {
+      width: 100%;
+      appearance: none;
+      cursor: pointer;
+    }
+
+    .search-box { padding: 0 8px 0 16px; gap: 8px; }
+    .search-box input { width: 100%; color: #334155; }
+    .search-btn {
+      height: 38px; min-width: 52px; padding: 0 14px;
+      border-radius: 12px; background: linear-gradient(135deg, var(--blue), #76b5ff);
+      color: white !important; font-weight: 800; cursor: pointer;
+      box-shadow: 0 8px 16px rgba(74,142,247,0.25);
+    }
+
+    .action-btn {
+      height: 52px; border-radius: 16px; border: 1px solid var(--border);
+      background: var(--panel); box-shadow: var(--shadow-soft); cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 0 16px; font-size: 14px; font-weight: 800; color: #516175;
+      transition: .2s ease;
+    }
+    .action-btn:hover { transform: translateY(-1px); }
+    .action-btn.primary { color: var(--blue); }
+    .action-btn.active { background: rgba(74,142,247,0.12); color: var(--blue); border-color: rgba(74,142,247,0.2); }
+
+    .layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 320px 1fr 320px;
+      gap: 14px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid rgba(255,255,255,0.9);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .sidebar, .rightbar {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .panel-head {
+      padding: 18px 18px 12px;
+      border-bottom: 1px solid rgba(230,236,245,0.8);
+    }
+
+    .panel-title { font-size: 17px; font-weight: 900; margin-bottom: 6px; }
+    .panel-sub { font-size: 13px; color: #7b8798; line-height: 1.7; }
+
+    .sidebar-search {
+      margin: 14px 18px 12px;
+      height: 46px; border-radius: 14px; border: 1px solid var(--border);
+      display: flex; align-items: center; gap: 8px; padding: 0 12px; background: white;
+      color: #97a3b4;
+    }
+    .sidebar-search input { border: none; outline: none; width: 100%; font: inherit; color: #334155; background: transparent; }
+
+    .topic-list, .right-scroll {
+      padding: 0 12px 14px;
+      overflow: auto;
+      min-height: 0;
+    }
+
+    .topic-item {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px;
+      margin: 6px 6px 0;
+      padding: 12px 14px;
+      border-radius: 16px;
+      color: #415065;
+      cursor: pointer;
+      transition: .2s ease;
+      border: 1px solid transparent;
+    }
+    .topic-item:hover, .topic-item.active {
+      background: rgba(74,142,247,0.10);
+      border-color: rgba(74,142,247,0.12);
+      color: var(--blue);
+    }
+    .topic-name { font-size: 14px; font-weight: 800; }
+    .topic-count {
+      min-width: 30px; height: 24px; padding: 0 8px;
+      border-radius: 999px; background: rgba(74,142,247,0.08);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(74,142,247,0.05), transparent 36%),
+        linear-gradient(rgba(124,145,184,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,145,184,0.08) 1px, transparent 1px);
+      background-size: auto, 26px 26px, 26px 26px;
+    }
+
+    #graphNetwork {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+    }
+
+    .canvas-topbar {
+      position: absolute;
+      left: 16px;
+      top: 16px;
+      z-index: 4;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      max-width: calc(100% - 32px);
+    }
+
+    .chip {
+      height: 36px;
+      border-radius: 999px;
+      padding: 0 14px;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(255,255,255,0.94);
+      box-shadow: var(--shadow-soft);
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      color: #5b6a80;
+      backdrop-filter: blur(12px);
+    }
+
+    .empty-state {
+      position: absolute;
+      left: 50%; top: 50%; transform: translate(-50%, -50%);
+      z-index: 1; text-align: center; color: #95a3b7; pointer-events: none;
+      transition: .25s ease;
+    }
+    .empty-state.hidden { opacity: 0; transform: translate(-50%, -54%); }
+    .empty-icon { font-size: 56px; margin-bottom: 12px; }
+    .empty-title { font-size: 20px; font-weight: 900; }
+    .empty-sub { font-size: 14px; margin-top: 8px; }
+
+    .loading-overlay {
+      position: absolute; inset: 0; z-index: 5;
+      background: rgba(248,251,255,0.62);
+      backdrop-filter: blur(4px);
+      display: none; align-items: center; justify-content: center;
+    }
+    .loading-overlay.show { display: flex; }
+    .loading-card {
+      min-width: 220px; padding: 16px 18px; border-radius: 16px;
+      background: rgba(255,255,255,0.94); border: 1px solid rgba(255,255,255,0.95);
+      box-shadow: var(--shadow);
+      font-size: 14px; color: #5d6c80; font-weight: 700;
+      text-align: center;
+    }
+
+    .section-card {
+      margin: 12px;
+      padding: 14px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(231,236,245,0.9);
+      border-radius: 18px;
+    }
+    .section-card h4 { margin: 0 0 10px; font-size: 15px; }
+    .section-card .muted { font-size: 13px; color: #7b8798; line-height: 1.7; }
+
+    .detail-name { font-size: 22px; font-weight: 900; margin-bottom: 8px; }
+    .detail-tag {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-height: 28px; padding: 4px 10px; border-radius: 999px;
+      font-size: 12px; font-weight: 800; background: #eef4ff; color: var(--blue);
+      margin-bottom: 12px;
+    }
+    .detail-desc { font-size: 13px; color: #5d6c80; line-height: 1.8; }
+
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .kv {
+      padding: 12px;
+      border-radius: 14px;
+      background: white;
+      border: 1px solid rgba(230,236,245,0.8);
+    }
+    .kv-label { font-size: 12px; color: #8a97aa; margin-bottom: 6px; }
+    .kv-value { font-size: 16px; font-weight: 900; }
+
+    .relation-list, .hot-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .section-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border: none;
+      background: transparent;
+      padding: 0;
+      cursor: pointer;
+      text-align: left;
+      color: inherit;
+    }
+
+    .section-toggle h4 {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .toggle-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: rgba(74,142,247,0.08);
+      color: var(--blue);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      font-weight: 900;
+      transition: transform .2s ease, background .2s ease;
+      flex-shrink: 0;
+    }
+
+    .collapsible-body {
+      margin-top: 10px;
+      display: none;
+    }
+
+    .section-card.expanded .collapsible-body {
+      display: block;
+    }
+
+    .section-card.expanded .toggle-icon {
+      transform: rotate(180deg);
+      background: rgba(74,142,247,0.12);
+    }
+
+    .relation-item, .hot-item {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 12px; padding: 12px; border-radius: 14px;
+      background: white; border: 1px solid rgba(230,236,245,0.8);
+      cursor: pointer;
+      transition: .18s ease;
+    }
+    .relation-item:hover, .hot-item:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); }
+
+    .relation-main, .hot-main { min-width: 0; }
+    .relation-title, .hot-title { font-size: 13px; font-weight: 800; color: #354255; }
+    .relation-sub, .hot-sub { font-size: 12px; color: #7d899b; margin-top: 4px; line-height: 1.6; }
+    .relation-badge, .hot-badge {
+      flex-shrink: 0;
+      min-width: 30px; height: 26px; padding: 0 8px;
+      border-radius: 999px; background: rgba(74,142,247,0.08);
+      color: var(--blue); display: inline-flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 900;
+    }
+
+    .inline-switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #627188; font-weight: 700; }
+
+    .modal-mask {
+      position: fixed; inset: 0; background: rgba(15,23,42,0.35); backdrop-filter: blur(2px);
+      display: none; align-items: center; justify-content: center; z-index: 30;
+      padding: 20px;
+    }
+    .modal-mask.show { display: flex; }
+    .modal {
+      width: min(560px, 100%); max-height: min(78vh, 760px); overflow: hidden;
+      background: rgba(255,255,255,0.96); border: 1px solid rgba(255,255,255,0.96);
+      border-radius: 24px; box-shadow: 0 18px 46px rgba(15,23,42,0.18);
+      display: grid; grid-template-rows: auto 1fr;
+    }
+    .modal-head {
+      padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      border-bottom: 1px solid rgba(230,236,245,0.85);
+    }
+    .modal-title { font-size: 18px; font-weight: 900; }
+    .modal-body { padding: 18px; overflow: auto; }
+    .close-btn {
+      width: 36px; height: 36px; border-radius: 12px; cursor: pointer;
+      background: rgba(15,23,42,0.05); border: none; font-size: 18px;
+    }
+
+    .vis-tooltip {
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(15,23,42,0.92);
+      color: white;
+      font-size: 12px;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.16);
+      max-width: 260px;
+    }
+
+    @media (max-width: 1440px) {
+      .toolbar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .search-box { grid-column: 1 / -1; }
+      .layout { grid-template-columns: 280px 1fr 300px; }
+    }
+
+    @media (max-width: 1100px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .layout { grid-template-columns: 1fr; }
+      .sidebar, .rightbar { min-height: 320px; }
+      .canvas-wrap { min-height: 700px; }
+    }
+
+    @media (max-width: 760px) {
+      .page { padding: 12px; }
+      .stats { grid-template-columns: 1fr; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .search-box { grid-column: 1 / -1; }
+      .control, .action-btn, .search-box { min-width: 0; }
+      .kv-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="stats">
+      <div class="stat-card blue">
+        <div class="stat-main">
+          <div class="stat-icon"><i class="fa-solid fa-book-medical" aria-hidden="true"></i></div>
+          <div>
+            <div class="stat-title">全库实体</div>
+            <div class="stat-value" id="nodeCountValue">0</div>
+          </div>
+        </div>
+        <div class="stat-meta">当前画布节点<br><strong id="nodeScaleText">0</strong></div>
+      </div>
+
+      <div class="stat-card green">
+        <div class="stat-main">
+          <div class="stat-icon"><i class="fa-solid fa-compass" aria-hidden="true"></i></div>
+          <div>
+            <div class="stat-title">全库关系</div>
+            <div class="stat-value" id="edgeTotalValue">0</div>
+          </div>
+        </div>
+        <div class="stat-meta">当前画布边数<br><strong id="edgeCountText">0</strong></div>
+      </div>
+
+      <div class="stat-card orange">
+        <div class="stat-main">
+          <div class="stat-icon"><i class="fa-solid fa-layer-group" aria-hidden="true"></i></div>
+          <div>
+            <div class="stat-title">主题类目</div>
+            <div class="stat-value" id="themeCountValue">0</div>
+          </div>
+        </div>
+        <div class="stat-meta">当前视图<br><strong id="currentViewText">全部知识点</strong></div>
+      </div>
+
+      <div class="stat-card purple">
+        <div class="stat-main">
+          <div class="stat-icon"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i></div>
+          <div>
+            <div class="stat-title">显示策略</div>
+            <div class="stat-value" id="densityLabelText">中等</div>
+          </div>
+        </div>
+        <div class="stat-meta">是否截断<br><strong id="truncateText">否</strong></div>
+      </div>
+    </section>
+
+    <section class="toolbar">
+      <label class="control">
+        <span>主题视图</span>
+        <select id="topicSelect"></select>
+      </label>
+
+      <label class="control">
+        <span>显示密度</span>
+        <select id="densitySelect">
+          <option value="40">精简</option>
+          <option value="80" selected>中等</option>
+          <option value="140">丰富</option>
+        </select>
+      </label>
+
+      <button class="action-btn" id="togglePhysicsBtn">关闭动态布局</button>
+      <button class="action-btn primary" id="fitBtn">适配画布</button>
+      <button class="action-btn" id="resetBtn">重置视图</button>
+
+      <div class="search-box">
+        <input id="globalSearchInput" placeholder="搜索实体、类别、关系或证据关键词" />
+        <button class="search-btn" id="searchBtn" aria-label="搜索">🔍</button>
+
+      </div>
+
+      <button class="action-btn" id="hotLink">节点 TOP10</button>
+    </section>
+
+    <section class="layout">
+      <aside class="panel sidebar">
+        <div class="panel-head">
+          <div class="panel-title">主题导航</div>
+          <div class="panel-sub">点击切换主题。输入关键词可快速筛选主题列表。</div>
+        </div>
+        <div class="sidebar-search">
+          <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+          <input id="sidebarSearchInput" placeholder="筛选图谱主题" />
+        </div>
+        <div class="topic-list" id="treeList"></div>
+      </aside>
+
+      <main class="panel canvas-wrap">
+        <div class="canvas-topbar">
+          <div class="chip">模式：<span id="modeText">全局概览</span></div>
+          <div class="chip">中心：<span id="centerText">—</span></div>
+          <div class="chip">上限：<span id="appliedLimitText">80</span></div>
+          <label class="chip inline-switch"><input type="checkbox" id="showLabelsToggle" checked /> 显示关系标签</label>
+        </div>
+
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon"><i class="fa-solid fa-circle-nodes" aria-hidden="true"></i></div>
+          <div class="empty-title">正在连接图谱服务</div>
+          <div class="empty-sub">首次加载会自动请求后端接口并生成更克制的图谱视图</div>
+        </div>
+
+        <div id="graphNetwork"></div>
+
+        <div class="loading-overlay" id="loadingOverlay">
+          <div class="loading-card" id="loadingText">正在加载图谱…</div>
+        </div>
+      </main>
+
+      <aside class="panel rightbar">
+        <div class="panel-head">
+          <div class="panel-title">节点详情</div>
+          <div class="panel-sub">单击查看详情，双击展开局部关系。右侧同时显示与当前节点最相关的关系。</div>
+        </div>
+        <div class="right-scroll">
+          <div class="section-card" id="summaryCard">
+            <h4>图谱模式</h4>
+            <div class="muted" id="summaryText">等待载入图谱数据…</div>
+          </div>
+
+          <div class="section-card" id="detailCard">
+            <div class="detail-name">未选择节点</div>
+            <div class="detail-tag">系统说明</div>
+            <div class="detail-desc">当前版本默认展示更精简的子图，避免一屏塞满节点。你可以通过“显示密度”切换图谱丰富度。</div>
+            <div class="kv-grid">
+              <div class="kv"><div class="kv-label">当前节点</div><div class="kv-value">—</div></div>
+              <div class="kv"><div class="kv-label">关联关系</div><div class="kv-value">0</div></div>
+              <div class="kv"><div class="kv-label">所属主题</div><div class="kv-value">—</div></div>
+              <div class="kv"><div class="kv-label">图谱模式</div><div class="kv-value">概览</div></div>
+            </div>
+          </div>
+
+          <div class="section-card" id="relationSection">
+            <button class="section-toggle" id="relationToggleBtn" type="button" aria-expanded="false">
+              <h4>关联关系</h4>
+              <span class="toggle-icon"><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></span>
+            </button>
+            <div class="collapsible-body" id="relationCollapseBody">
+              <div class="relation-list" id="relationList">
+                <div class="muted">选择节点后，可按需展开查看它最相关的边与相邻实体。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </div>
+
+  <div class="modal-mask" id="hotModal">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-title">节点 TOP10</div>
+          <div class="panel-sub">基于节点连接度从后端实时获取。</div>
+        </div>
+        <button class="close-btn" id="closeHotModal" aria-label="关闭"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="hot-list" id="hotList"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://127.0.0.1:8001';
+    const DEFAULT_LIMIT = 80;
+    const DEFAULT_NEIGHBOR_LIMIT = 30;
+
+    const GROUP_STYLE_MAP = {
+      '疾病': { color: { background: '#dfeeff', border: '#64a4ff' } },
+      '症状': { color: { background: '#defaf3', border: '#35d0ac' } },
+      '药物': { color: { background: '#ffeadf', border: '#ff9e7f' } },
+      '并发症': { color: { background: '#efe8ff', border: '#9b8cff' } },
+      '检查/指标': { color: { background: '#e5efff', border: '#6b8dff' } },
+      '生活方式': { color: { background: '#e5fff4', border: '#2ec88c' } },
+      '机制': { color: { background: '#f5ecff', border: '#ae7dff' } },
+      '不良反应': { color: { background: '#fff3ea', border: '#ffad77' } },
+      '风险因素': { color: { background: '#fff8e0', border: '#e0b34a' } },
+      '管理': { color: { background: '#e7f8ff', border: '#49b9ea' } },
+      '实体': { color: { background: '#eef4ff', border: '#8bb4ff' } }
+    };
+
+    const state = {
+      network: null,
+      topics: ['全部知识点'],
+      globalStats: { node_count: 0, edge_count: 0, category_count: 0, relation_count: 0 },
+      currentTopic: '全部知识点',
+      currentMode: 'overview',
+      currentCenter: '',
+      lastGraphData: null,
+      selectedNodeId: null,
+      physicsEnabled: true,
+      showEdgeLabels: true,
+      currentLimit: DEFAULT_LIMIT,
+      hotTerms: []
+    };
+
+    const elements = {
+      treeList: document.getElementById('treeList'),
+      topicSelect: document.getElementById('topicSelect'),
+      sidebarSearchInput: document.getElementById('sidebarSearchInput'),
+      globalSearchInput: document.getElementById('globalSearchInput'),
+      graphContainer: document.getElementById('graphNetwork'),
+      emptyState: document.getElementById('emptyState'),
+      loadingOverlay: document.getElementById('loadingOverlay'),
+      loadingText: document.getElementById('loadingText'),
+      summaryText: document.getElementById('summaryText'),
+      detailCard: document.getElementById('detailCard'),
+      relationList: document.getElementById('relationList'),
+      densitySelect: document.getElementById('densitySelect'),
+      showLabelsToggle: document.getElementById('showLabelsToggle'),
+      hotModal: document.getElementById('hotModal'),
+      hotList: document.getElementById('hotList'),
+      relationSection: document.getElementById('relationSection'),
+      relationToggleBtn: document.getElementById('relationToggleBtn')
+    };
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function densityText(value) {
+      const v = Number(value);
+      if (v <= 45) return '精简';
+      if (v <= 100) return '中等';
+      return '丰富';
+    }
+
+    function showLoading(text) {
+      elements.loadingText.textContent = text || '正在加载图谱…';
+      elements.loadingOverlay.classList.add('show');
+    }
+
+    function hideLoading() {
+      elements.loadingOverlay.classList.remove('show');
+    }
+
+    async function fetchJson(url) {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`请求失败：${response.status} ${text}`);
+      }
+      return response.json();
+    }
+
+    function normalizeNode(raw) {
+      const degree = raw.degree || 0;
+      const size = Math.max(16, Math.min(34, 16 + degree * 1.2));
+      return {
+        id: raw.id,
+        label: raw.label,
+        title: `${raw.group_zh || raw.group || '实体'}：${raw.label}${raw.description ? `\n${raw.description}` : ''}`,
+        group: raw.group_zh || raw.group || '实体',
+        groupRaw: raw.group || '实体',
+        description: raw.description || '',
+        topic: raw.topic || '全部知识点',
+        value: raw.value || 1,
+        degree,
+        size,
+        font: { size: size >= 28 ? 16 : 13 }
+      };
+    }
+
+    function normalizeEdge(raw) {
+      return {
+        id: raw.id,
+        from: raw.from_ || raw.from,
+        to: raw.to,
+        label: state.showEdgeLabels ? (raw.label || raw.rel_type || '关系') : '',
+        title: raw.evidence || raw.label || raw.rel_type || '关系',
+        rawLabel: raw.label || raw.rel_type || '关系',
+        rel_type: raw.rel_type || '',
+        evidence: raw.evidence || ''
+      };
+    }
+
+    function buildGroups(nodes) {
+      const groups = {};
+      [...new Set(nodes.map(item => item.group))].forEach(group => {
+        groups[group] = GROUP_STYLE_MAP[group] || GROUP_STYLE_MAP['实体'];
+      });
+      return groups;
+    }
+
+    function setSummary(text, isError = false) {
+      elements.summaryText.textContent = text;
+      elements.summaryText.style.color = isError ? 'var(--danger)' : '#7b8798';
+    }
+
+    function setRelationExpanded(expanded) {
+      elements.relationSection.classList.toggle('expanded', !!expanded);
+      elements.relationToggleBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+
+    function updateStats(data) {
+      document.getElementById('nodeCountValue').textContent = state.globalStats.node_count || 0;
+      document.getElementById('edgeTotalValue').textContent = state.globalStats.edge_count || 0;
+      document.getElementById('themeCountValue').textContent = Math.max((state.topics?.length || 1) - 1, 0);
+      document.getElementById('nodeScaleText').textContent = data?.nodes?.length || 0;
+      document.getElementById('edgeCountText').textContent = data?.edges?.length || 0;
+      document.getElementById('currentViewText').textContent = data?.topic || state.currentTopic;
+      document.getElementById('densityLabelText').textContent = densityText(state.currentLimit);
+      document.getElementById('truncateText').textContent = data?.meta?.truncated ? '是' : '否';
+      document.getElementById('modeText').textContent = ({ overview: '全局概览', topic: '主题子图', search: '关键词搜索', neighbors: '局部关系' })[data?.meta?.mode] || '图谱模式';
+      document.getElementById('centerText').textContent = data?.meta?.center || '—';
+      document.getElementById('appliedLimitText').textContent = data?.meta?.applied_limit || state.currentLimit;
+    }
+
+    function renderTopicSelect() {
+      elements.topicSelect.innerHTML = state.topics.map(topic => (
+        `<option value="${escapeHtml(topic)}" ${topic === state.currentTopic ? 'selected' : ''}>${escapeHtml(topic)}</option>`
+      )).join('');
+    }
+
+    function renderTree(filterKeyword = '') {
+      const keyword = filterKeyword.trim().toLowerCase();
+      const visibleTopics = state.topics.filter(topic => topic.toLowerCase().includes(keyword));
+      elements.treeList.innerHTML = visibleTopics.map(topic => `
+        <div class="topic-item ${topic === state.currentTopic ? 'active' : ''}" data-topic="${escapeHtml(topic)}">
+          <div class="topic-name">${escapeHtml(topic)}</div>
+          <div class="topic-count">${topic === '全部知识点' ? 'ALL' : '主题'}</div>
+        </div>
+      `).join('') || '<div class="section-card"><div class="muted">没有匹配的主题。</div></div>';
+
+      elements.treeList.querySelectorAll('.topic-item').forEach(item => {
+        item.addEventListener('click', async () => {
+          const topic = item.dataset.topic;
+          elements.topicSelect.value = topic;
+          if (topic === '全部知识点') {
+            await loadOverview();
+          } else {
+            await loadTopic(topic);
+          }
+        });
+      });
+    }
+
+    function updateDetailCard(node = null) {
+      if (!node) {
+        elements.detailCard.innerHTML = `
+          <div class="detail-name">未选择节点</div>
+          <div class="detail-tag">系统说明</div>
+          <div class="detail-desc">当前版本默认展示更精简的子图，避免一屏塞满节点。你可以通过“显示密度”切换图谱丰富度，双击节点进入局部关系视图。</div>
+          <div class="kv-grid">
+            <div class="kv"><div class="kv-label">当前节点</div><div class="kv-value">—</div></div>
+            <div class="kv"><div class="kv-label">关联关系</div><div class="kv-value">0</div></div>
+            <div class="kv"><div class="kv-label">所属主题</div><div class="kv-value">—</div></div>
+            <div class="kv"><div class="kv-label">图谱模式</div><div class="kv-value">${state.currentMode === 'neighbors' ? '局部' : '概览'}</div></div>
+          </div>
+        `;
+        renderRelationList([]);
+        return;
+      }
+
+      const relations = getRelationsForNode(node.id);
+      elements.detailCard.innerHTML = `
+        <div class="detail-name">${escapeHtml(node.label)}</div>
+        <div class="detail-tag">${escapeHtml(node.group)}</div>
+        <div class="detail-desc">${escapeHtml(node.description || '暂无节点说明。')}</div>
+        <div class="kv-grid">
+          <div class="kv"><div class="kv-label">关联关系</div><div class="kv-value">${relations.length}</div></div>
+          <div class="kv"><div class="kv-label">连接度</div><div class="kv-value">${node.degree || 0}</div></div>
+          <div class="kv"><div class="kv-label">所属主题</div><div class="kv-value">${escapeHtml(node.topic || '未分类')}</div></div>
+          <div class="kv"><div class="kv-label">当前模式</div><div class="kv-value">${state.currentMode === 'neighbors' ? '局部关系' : '图谱视图'}</div></div>
+        </div>
+      `;
+      renderRelationList(relations);
+    }
+
+    function getRelationsForNode(nodeId) {
+      if (!state.lastGraphData) return [];
+      const nodesById = Object.fromEntries(state.lastGraphData.nodes.map(node => [node.id, node]));
+      return state.lastGraphData.edges
+        .filter(edge => edge.from === nodeId || edge.to === nodeId)
+        .map(edge => {
+          const peerId = edge.from === nodeId ? edge.to : edge.from;
+          const peer = nodesById[peerId];
+          return {
+            ...edge,
+            peerLabel: peer?.label || peerId,
+            peerTopic: peer?.topic || '未分类'
+          };
+        })
+        .sort((a, b) => (b.evidence?.length || 0) - (a.evidence?.length || 0))
+        .slice(0, 8);
+    }
+
+    function renderRelationList(relations) {
+      elements.relationList.innerHTML = relations.length ? relations.map(item => `
+        <div class="relation-item" data-peer="${escapeHtml(item.peerLabel)}">
+          <div class="relation-main">
+            <div class="relation-title">${escapeHtml(item.rawLabel)} → ${escapeHtml(item.peerLabel)}</div>
+            <div class="relation-sub">${escapeHtml(item.evidence || item.peerTopic || '暂无关系说明')}</div>
+          </div>
+          <div class="relation-badge">查看</div>
+        </div>
+      `).join('') : '<div class="muted">当前节点暂无可展示的关系。</div>';
+
+      setRelationExpanded(false);
+
+      elements.relationList.querySelectorAll('.relation-item').forEach(item => {
+        item.addEventListener('click', async () => {
+          const peer = item.dataset.peer;
+          if (peer) {
+            elements.globalSearchInput.value = peer;
+            await searchGraph(peer);
+          }
+        });
+      });
+    }
+
+    function createVisOptions(nodes) {
+      return {
+        autoResize: true,
+        interaction: {
+          hover: true,
+          dragNodes: true,
+          dragView: true,
+          zoomView: true,
+          navigationButtons: false,
+          multiselect: false
+        },
+        physics: {
+          enabled: state.physicsEnabled,
+          barnesHut: {
+            gravitationalConstant: -1800,
+            springLength: 145,
+            springConstant: 0.032,
+            damping: 0.24,
+            avoidOverlap: 0.35
+          },
+          stabilization: { iterations: 130, fit: true }
+        },
+        nodes: {
+          shape: 'dot',
+          borderWidth: 2,
+          shadow: true,
+          font: { size: 13, face: 'Microsoft YaHei', color: '#243244' },
+          scaling: { min: 16, max: 34 }
+        },
+        edges: {
+          arrows: { to: { enabled: true, scaleFactor: 0.7 } },
+          smooth: { type: 'continuous', roundness: 0.2 },
+          color: { color: '#c4d4ea', highlight: '#4a8ef7', hover: '#4a8ef7', inherit: false },
+          width: 1.2,
+          shadow: false,
+          font: { size: 11, color: '#627188', strokeWidth: 0, align: 'middle', background: 'rgba(255,255,255,0.78)' },
+          selectionWidth: 2.2,
+          hoverWidth: 1.8
+        },
+        groups: buildGroups(nodes),
+        layout: {
+          improvedLayout: true,
+          randomSeed: 16
+        }
+      };
+    }
+
+    function renderGraph(data) {
+      state.currentMode = data?.meta?.mode || state.currentMode;
+      state.currentCenter = data?.meta?.center || '';
+      state.lastGraphData = {
+        ...data,
+        nodes: (data.nodes || []).map(normalizeNode),
+        edges: (data.edges || []).map(normalizeEdge)
+      };
+
+      const nodes = state.lastGraphData.nodes;
+      const edges = state.lastGraphData.edges;
+      updateStats(data);
+      elements.emptyState.classList.toggle('hidden', nodes.length > 0);
+
+      if (state.network) {
+        state.network.destroy();
+        state.network = null;
+      }
+
+      if (!nodes.length) {
+        updateDetailCard(null);
+        return;
+      }
+
+      const visNodes = new vis.DataSet(nodes);
+      const visEdges = new vis.DataSet(edges);
+      state.network = new vis.Network(elements.graphContainer, { nodes: visNodes, edges: visEdges }, createVisOptions(nodes));
+
+      state.network.on('click', params => {
+        if (!params.nodes.length) {
+          state.selectedNodeId = null;
+          updateDetailCard(null);
+          return;
+        }
+        const nodeId = params.nodes[0];
+        state.selectedNodeId = nodeId;
+        const node = visNodes.get(nodeId);
+        updateDetailCard(node);
+      });
+
+      state.network.on('doubleClick', async params => {
+        if (!params.nodes.length) return;
+        const node = visNodes.get(params.nodes[0]);
+        if (node?.label) {
+          await loadNodeNeighbors(node.label);
+        }
+      });
+
+      setTimeout(() => {
+        state.network.fit({ animation: { duration: 420, easingFunction: 'easeInOutQuad' } });
+      }, 80);
+
+      updateDetailCard(null);
+    }
+
+    function handleLoadError(error, title = '加载失败') {
+      hideLoading();
+      elements.emptyState.classList.remove('hidden');
+      elements.emptyState.querySelector('.empty-title').textContent = title;
+      elements.emptyState.querySelector('.empty-sub').textContent = error.message || '请检查后端服务是否启动';
+      setSummary(error.message || title, true);
+      updateDetailCard(null);
+      console.error(error);
+    }
+
+    async function loadGlobalStats() {
+      try {
+        state.globalStats = await fetchJson(`${API_BASE}/graph/global-stats`);
+      } catch (error) {
+        console.warn('加载全局统计失败', error);
+      }
+    }
+
+    async function loadTopics() {
+      try {
+        const data = await fetchJson(`${API_BASE}/graph/topics`);
+        state.topics = Array.isArray(data.topics) && data.topics.length ? data.topics : ['全部知识点'];
+      } catch (error) {
+        state.topics = ['全部知识点'];
+      }
+      renderTopicSelect();
+      renderTree(elements.sidebarSearchInput.value);
+    }
+
+    async function loadHotTerms() {
+      try {
+        const data = await fetchJson(`${API_BASE}/graph/hot-terms?limit=10`);
+        state.hotTerms = Array.isArray(data.hot_terms) ? data.hot_terms : [];
+      } catch (error) {
+        state.hotTerms = [];
+      }
+    }
+
+    function renderHotTerms() {
+      elements.hotList.innerHTML = state.hotTerms.length ? state.hotTerms.map((item, index) => `
+        <div class="hot-item" data-name="${escapeHtml(item.name)}">
+          <div class="hot-main">
+            <div class="hot-title">TOP ${index + 1} · ${escapeHtml(item.name)}</div>
+            <div class="hot-sub">类别：${escapeHtml(item.group || '实体')} · 连接度：${item.degree ?? 0}</div>
+          </div>
+          <div class="hot-badge">搜索</div>
+        </div>
+      `).join('') : '<div class="muted">暂无热搜数据。</div>';
+
+      elements.hotList.querySelectorAll('.hot-item').forEach(item => {
+        item.addEventListener('click', async () => {
+          const name = item.dataset.name;
+          elements.hotModal.classList.remove('show');
+          elements.globalSearchInput.value = name;
+          await searchGraph(name);
+        });
+      });
+    }
+
+    async function loadOverview() {
+      state.currentTopic = '全部知识点';
+      showLoading('正在加载全局概览…');
+      try {
+        const data = await fetchJson(`${API_BASE}/graph/overview?limit=${state.currentLimit}`);
+        renderGraph(data);
+        renderTopicSelect();
+        renderTree(elements.sidebarSearchInput.value);
+        setSummary(data.meta?.truncated
+          ? `已加载全局概览。当前为更美观的精简视图，只展示最有代表性的 ${data.nodes.length} 个节点。`
+          : `已加载全局概览，共展示 ${data.nodes.length} 个节点。`);
+      } catch (error) {
+        handleLoadError(error, '加载全局概览失败');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function loadTopic(topic) {
+      state.currentTopic = topic;
+      showLoading(`正在加载主题：${topic}`);
+      try {
+        const data = await fetchJson(`${API_BASE}/graph/topic/${encodeURIComponent(topic)}?limit=${state.currentLimit}`);
+        renderGraph(data);
+        renderTopicSelect();
+        renderTree(elements.sidebarSearchInput.value);
+        setSummary(`已切换到主题“${topic}”。当前展示 ${data.nodes.length} 个节点、${data.edges.length} 条边。`);
+      } catch (error) {
+        handleLoadError(error, `加载主题“${topic}”失败`);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function searchGraph(keyword) {
+      const q = (keyword || '').trim();
+      if (!q) {
+        await loadOverview();
+        return;
+      }
+      showLoading(`正在搜索：${q}`);
+      try {
+        const data = await fetchJson(`${API_BASE}/graph/search?keyword=${encodeURIComponent(q)}&limit=${state.currentLimit}`);
+        renderGraph(data);
+        renderTree(elements.sidebarSearchInput.value);
+        renderTopicSelect();
+        setSummary(`已完成搜索“${q}”。${data.meta?.truncated ? '当前结果已按优先级做了精简。' : ''}`);
+      } catch (error) {
+        handleLoadError(error, `搜索“${q}”失败`);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    async function loadNodeNeighbors(nodeName) {
+      const limit = Math.min(state.currentLimit, DEFAULT_NEIGHBOR_LIMIT);
+      showLoading(`正在展开节点：${nodeName}`);
+      try {
+        const data = await fetchJson(`${API_BASE}/graph/node/${encodeURIComponent(nodeName)}?limit=${limit}`);
+        renderGraph(data);
+        setSummary(`已展开“${nodeName}”的局部关系网络。这样比一次展示全图更清晰。`);
+      } catch (error) {
+        handleLoadError(error, `展开节点“${nodeName}”失败`);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function fitNetwork() {
+      if (state.network) {
+        state.network.fit({ animation: { duration: 380, easingFunction: 'easeInOutQuad' } });
+      }
+    }
+
+    function rerenderCurrentGraph() {
+      if (!state.lastGraphData) return;
+      renderGraph(state.lastGraphData);
+    }
+
+    document.getElementById('togglePhysicsBtn').addEventListener('click', () => {
+      state.physicsEnabled = !state.physicsEnabled;
+      const btn = document.getElementById('togglePhysicsBtn');
+      btn.textContent = state.physicsEnabled ? '关闭动态布局' : '开启动态布局';
+      btn.classList.toggle('active', !state.physicsEnabled);
+      rerenderCurrentGraph();
+      setSummary(state.physicsEnabled ? '已开启动态布局，图谱会自动调整。' : '已关闭动态布局，节点位置将更稳定。');
+    });
+
+    document.getElementById('fitBtn').addEventListener('click', fitNetwork);
+
+    document.getElementById('resetBtn').addEventListener('click', async () => {
+      state.currentLimit = DEFAULT_LIMIT;
+      elements.densitySelect.value = String(DEFAULT_LIMIT);
+      state.physicsEnabled = true;
+      state.showEdgeLabels = true;
+      elements.showLabelsToggle.checked = true;
+      document.getElementById('togglePhysicsBtn').textContent = '关闭动态布局';
+      document.getElementById('togglePhysicsBtn').classList.remove('active');
+      elements.globalSearchInput.value = '';
+      elements.sidebarSearchInput.value = '';
+      renderTree('');
+      await loadOverview();
+    });
+
+    document.getElementById('searchBtn').addEventListener('click', async () => {
+      await searchGraph(elements.globalSearchInput.value);
+    });
+
+    elements.globalSearchInput.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') {
+        await searchGraph(elements.globalSearchInput.value);
+      }
+    });
+
+    elements.globalSearchInput.addEventListener('input', async () => {
+      if (!elements.globalSearchInput.value.trim()) {
+        await loadOverview();
+      }
+    });
+
+    elements.sidebarSearchInput.addEventListener('input', () => {
+      renderTree(elements.sidebarSearchInput.value);
+    });
+
+    elements.topicSelect.addEventListener('change', async () => {
+      const topic = elements.topicSelect.value;
+      if (topic === '全部知识点') {
+        await loadOverview();
+      } else {
+        await loadTopic(topic);
+      }
+    });
+
+    elements.densitySelect.addEventListener('change', async () => {
+      state.currentLimit = Number(elements.densitySelect.value) || DEFAULT_LIMIT;
+      if (state.currentMode === 'search') {
+        await searchGraph(elements.globalSearchInput.value);
+      } else if (state.currentMode === 'neighbors' && state.currentCenter) {
+        await loadNodeNeighbors(state.currentCenter);
+      } else if (state.currentTopic && state.currentTopic !== '全部知识点') {
+        await loadTopic(state.currentTopic);
+      } else {
+        await loadOverview();
+      }
+    });
+
+    elements.showLabelsToggle.addEventListener('change', () => {
+      state.showEdgeLabels = elements.showLabelsToggle.checked;
+      rerenderCurrentGraph();
+      setSummary(state.showEdgeLabels ? '已显示关系标签。' : '已隐藏关系标签，画面会更清爽。');
+    });
+
+    elements.relationToggleBtn.addEventListener('click', () => {
+      const expanded = elements.relationToggleBtn.getAttribute('aria-expanded') === 'true';
+      setRelationExpanded(!expanded);
+    });
+
+    document.getElementById('hotLink').addEventListener('click', async () => {
+      if (!state.hotTerms.length) {
+        await loadHotTerms();
+      }
+      renderHotTerms();
+      elements.hotModal.classList.add('show');
+    });
+
+    document.getElementById('closeHotModal').addEventListener('click', () => {
+      elements.hotModal.classList.remove('show');
+    });
+
+    elements.hotModal.addEventListener('click', (e) => {
+      if (e.target === elements.hotModal) {
+        elements.hotModal.classList.remove('show');
+      }
+    });
+
+    window.addEventListener('resize', () => {
+      if (state.network) state.network.redraw();
+    });
+
+    async function bootstrap() {
+      elements.densitySelect.value = String(DEFAULT_LIMIT);
+      state.currentLimit = DEFAULT_LIMIT;
+      setRelationExpanded(false);
+      await Promise.all([loadGlobalStats(), loadTopics(), loadHotTerms()]);
+      await loadOverview();
+    }
+
+    bootstrap();
+  </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>基于大模型 + RAG + 知识图谱的糖尿病问答系统</title>
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+*{box-sizing:border-box}
+    :root{--bg:#f7f7f8;--sidebar:#f3f4f6;--panel:#fff;--border:#e5e7eb;--text:#111827;--muted:#6b7280;--primary:#10a37f;--primary-hover:#0e8f70;--danger:#ef4444;--info:#2563eb;--shadow:0 1px 2px rgba(0,0,0,.05)}
+    body{margin:0;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+    .app{display:grid;grid-template-columns:300px 1fr;height:100vh}
+    .sidebar{background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+    .sidebar-top,.brand-box,.sidebar-footer{padding:16px;border-bottom:1px solid var(--border)}
+    .new-chat-btn,.top-mini-btn,.mini-btn,.primary-btn,.ghost-btn,.send-btn,.close-btn,.history-btn{border:none;border-radius:12px;cursor:pointer}
+    .new-chat-btn{width:100%;padding:12px 14px;background:#fff;border:1px solid var(--border);font-weight:700}
+    .search-box{margin-top:10px;display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+    .search-box input{border:none;outline:none;background:transparent;width:100%;font-size:14px}
+    .brand{font-size:22px;font-weight:800;margin-bottom:8px}
+    .brand-sub,.sidebar-footer,.hint,.role,.meta-label,.group-label{font-size:12px;color:var(--muted);line-height:1.7}
+    .history{flex:1;overflow-y:auto;padding:12px;scrollbar-width:auto;scrollbar-color:#94a3b8 #e5e7eb}
+    .history::-webkit-scrollbar,.chat::-webkit-scrollbar,.modal-body::-webkit-scrollbar{width:12px;height:12px}
+    .history::-webkit-scrollbar-track,.chat::-webkit-scrollbar-track,.modal-body::-webkit-scrollbar-track{background:#e5e7eb;border-radius:999px}
+    .history::-webkit-scrollbar-thumb,.chat::-webkit-scrollbar-thumb,.modal-body::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:999px;border:2px solid #e5e7eb}
+    .history-group{margin-bottom:14px}
+    .group-label{font-weight:700;margin:2px 4px 10px}
+    .history-item{padding:12px;border-radius:14px;margin-bottom:8px;border:1px solid transparent;background:transparent}
+    .history-item:hover{background:#eceff3}.history-item.active{background:#fff;border-color:var(--border)}
+    .history-row{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.history-main{flex:1;min-width:0;cursor:pointer}
+    .history-item-title{font-size:14px;font-weight:700;line-height:1.5;color:#1f2937;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .history-item-time{margin-top:6px;font-size:12px;color:var(--muted)}
+    .history-actions{display:flex;gap:6px;flex-shrink:0}.history-btn{width:28px;height:28px;color:#fff;font-weight:700}.rename{background:#3b82f6}.delete{background:var(--danger)}
+    .main{display:flex;flex-direction:column;height:100vh;background:#fff}
+    .topbar{min-height:60px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;padding:10px 20px;gap:12px;flex-wrap:wrap;background:rgba(255,255,255,.92);backdrop-filter:blur(8px)}
+    .top-title{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .top-mini-btn,.top-select{background:#eef2f7;color:#374151;padding:8px 12px;height:38px}.top-select{border:1px solid transparent;outline:none;border-radius:12px;min-width:220px}.top-status{font-size:13px;color:var(--muted)}
+    .chat{flex:1;overflow-y:auto;padding:28px 0 40px}.chat-inner,.composer{width:min(920px,calc(100% - 32px));margin:0 auto}
+    .welcome{text-align:center;color:var(--muted);padding:64px 20px 24px}.welcome-title{font-size:28px;font-weight:800;color:#1f2937;margin-bottom:10px}
+    .welcome-examples{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px}.chip{padding:10px 16px;border-radius:999px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:14px;color:#374151}
+    .message-row{display:flex;gap:14px;align-items:flex-start;margin-bottom:28px}.avatar{width:34px;min-width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700}.user{background:#2563eb}.bot{background:var(--primary)}
+    .bubble-wrap{flex:1;min-width:0}.bubble{border-radius:16px;padding:16px 18px;line-height:1.9;font-size:16px;border:1px solid var(--border);white-space:pre-wrap;word-break:break-word;background:#f8fafc}
+    .answer-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.mini-btn{background:#eef2f7;color:#374151;padding:8px 12px}
+    .meta-box{margin-top:12px;border:1px solid var(--border);border-radius:14px;background:#fafafa;overflow:hidden}.meta-header{padding:10px 14px;background:#f3f4f6;font-size:13px;font-weight:700;color:#374151;display:flex;justify-content:space-between;cursor:pointer}.meta-content{display:none;padding:14px}.meta-content.show{display:block}
+    .meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}.meta-item{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px}.meta-value{font-size:14px;line-height:1.7;word-break:break-word}
+    .hint-card,.evidence-card{padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.8}.hint-card{border-left:4px solid var(--info);background:#eff6ff;color:#1e3a8a}.evidence-card{border:1px solid var(--border);background:#fff}
+    .composer-wrap{border-top:1px solid var(--border);background:#fff;padding:16px 0 20px}.composer-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}.composer-modes{display:flex;gap:10px;flex-wrap:wrap}
+    .toggle-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;height:38px;border-radius:12px;background:#eef2f7;color:#374151;font-size:13px;user-select:none;cursor:pointer}.toggle-chip input{accent-color:var(--primary);width:16px;height:16px;margin:0}
+    .input-box{display:flex;gap:10px;align-items:flex-end;border:1px solid var(--border);border-radius:20px;padding:12px;background:#fff;box-shadow:var(--shadow)} textarea.msg{flex:1;border:none;resize:none;outline:none;font-size:16px;line-height:1.7;min-height:28px;max-height:180px;font-family:inherit;background:transparent}
+    .send-btn{width:46px;height:46px;background:var(--primary);color:#fff;font-size:18px;font-weight:700}.send-btn:hover{background:var(--primary-hover)}.send-btn:disabled{opacity:.65;cursor:not-allowed}.error{color:#d93025}
+    .typing{display:inline-flex;gap:6px;align-items:center}.dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;animation:pulse 1.2s infinite ease-in-out}.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}@keyframes pulse{0%,80%,100%{opacity:.35;transform:scale(.75)}40%{opacity:1;transform:scale(1)}}
+    .modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.42);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}.modal-mask.show{display:flex}.modal{width:min(980px,100%);max-height:88vh;overflow:hidden;background:#fff;border-radius:20px;box-shadow:0 18px 60px rgba(15,23,42,.18);border:1px solid var(--border);display:flex;flex-direction:column}
+    .modal-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px}.modal-title{font-size:16px;font-weight:800}.modal-sub{font-size:12px;color:var(--muted);margin-top:4px}.close-btn{background:#eef2f7;color:#374151;width:36px;height:36px}
+    .modal-body{padding:18px;overflow:auto}.section-title{font-size:14px;font-weight:700;margin:0 0 10px}.provider-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px}.provider-card{border:1px solid var(--border);border-radius:14px;padding:12px;background:#f8fafc;cursor:pointer}.provider-card:hover{border-color:#cbd5e1;background:#fff}.provider-name{font-size:14px;font-weight:700;margin-bottom:6px}.provider-desc{font-size:12px;color:var(--muted);line-height:1.6}
+    .form-card{border:1px solid var(--border);border-radius:16px;padding:14px;background:#fbfdff}.config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.config-item{display:flex;flex-direction:column;gap:6px}.config-item.full{grid-column:1 / -1}.config-input,.config-select,.config-textarea{border:1px solid var(--border);background:#fff;color:#111827;font-size:14px;padding:10px 12px;border-radius:12px;font-family:inherit}.config-textarea{min-height:72px;resize:vertical}
+    .row-actions,.saved-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.primary-btn{background:var(--primary);color:#fff;padding:10px 14px}.ghost-btn{background:#eef2f7;color:#374151;padding:10px 14px}.saved-list{display:grid;gap:10px;margin-top:16px}.saved-item{border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff}.saved-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.saved-name{font-size:14px;font-weight:700}.saved-meta{margin-top:6px;color:var(--muted);font-size:12px;line-height:1.7;word-break:break-all}.tag{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2f7;font-size:12px;color:#475569;margin-right:6px}
+
+    .graph-modal{position:fixed;inset:0;background:rgba(17,24,39,.45);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
+    .graph-modal.show{display:flex}
+    .graph-box{width:min(1040px,95vw);height:min(720px,90vh);background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden}
+    .graph-head{height:58px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-weight:700}
+    .graph-close{border:none;background:#eef2f7;border-radius:10px;padding:8px 12px;cursor:pointer}
+    .graph-canvas-wrap{flex:1;min-height:420px;background:#f8fafc}
+    #graphNetwork{width:100%;height:100%;min-height:420px}
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;color:#fff;font-size:12px;margin-right:6px}
+    .badge.rag{background:#0891b2}.badge.kg{background:#7c3aed}.badge.fusion{background:#059669}
+    .icon-font{display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:14px}
+    .new-chat-btn .icon-font{margin-right:6px}
+    .search-box .icon-font{color:var(--muted);flex-shrink:0}
+    .send-btn .icon-font{font-size:17px}
+    .history-btn .icon-font,.close-btn .icon-font{font-size:14px}
+
+    @media (max-width:960px){.app{grid-template-columns:1fr}.sidebar{display:none}.meta-grid,.config-grid,.provider-grid{grid-template-columns:1fr}.topbar{padding:10px 14px}.modal{max-height:92vh}}
+
+    /* ===== Unified visual compatibility aliases ===== */
+    .icon,.icon-inline,.search-icon{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      line-height:1;
+      font-size:14px;
+      flex-shrink:0;
+    }
+    .search-box .icon,.search-box .icon-inline,.search-box .search-icon{
+      color:var(--muted);
+      flex:0 0 auto;
+    }
+    .new-chat-btn,.top-mini-btn,.mini-btn,.primary-btn,.ghost-btn,.send-btn,.close-btn,.history-btn,.graph-close{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+    }
+    .send-btn .icon,.send-btn .icon-inline,.send-btn .icon-font{font-size:17px}
+    .history-btn .icon,.history-btn .icon-inline,.history-btn .icon-font,
+    .close-btn .icon,.close-btn .icon-inline,.close-btn .icon-font{font-size:14px;pointer-events:none}
+    .graph-body,.graph-canvas-wrap{flex:1;min-height:420px;background:#f8fafc;position:relative;overflow:auto}
+    .graph-body #graphNetwork,.graph-canvas-wrap #graphNetwork{width:100%;height:100%;min-height:420px}
+    .evidence-title{font-size:13px;font-weight:700;color:#374151;margin-bottom:10px}
+    .evidence-text{font-size:14px;line-height:1.8;color:#4b5563}
+    .code-box{
+      background:#111827;
+      color:#e5e7eb;
+      border-radius:12px;
+      padding:12px;
+      font-family:Consolas,monospace;
+      font-size:12px;
+      line-height:1.7;
+      white-space:pre-wrap;
+      word-break:break-word;
+      max-height:260px;
+      overflow:auto;
+      margin-bottom:14px;
+    }
+    .button-icon{pointer-events:none}
+    .top-mini-btn i,.mini-btn i,.primary-btn i,.ghost-btn i,.graph-close i,.new-chat-btn i{pointer-events:none}
+    textarea:not(.msg){
+      flex:1;
+      border:none;
+      resize:none;
+      outline:none;
+      font-size:16px;
+      line-height:1.7;
+      min-height:28px;
+      max-height:180px;
+      font-family:inherit;
+      background:transparent;
+    }
+    .history-title{
+      font-size:12px;
+      color:var(--muted);
+      font-weight:700;
+      margin:2px 4px 10px;
+    }
+    .top-mini-btn:hover,.mini-btn:hover,.ghost-btn:hover,.graph-close:hover,.close-btn:hover,.toggle-chip:hover{
+      background:#e5ebf3;
+    }
+    .chip:hover,.provider-card:hover{
+      background:#fff;
+      border-color:#cbd5e1;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand-box">
+        <div class="brand">基于大模型 + RAG + 知识图谱的糖尿病问答系统</div>
+        <div class="brand-sub">融合 FAISS 向量检索、Neo4j 知识图谱与大模型生成；自定义配置功能与 LLM+RAG 方案保持一致。</div>
+      </div>
+      <div class="sidebar-top">
+        <button id="newChatBtn" class="new-chat-btn"><i class="fa-solid fa-plus icon-font" aria-hidden="true"></i>新建会话</button>
+        <div class="search-box"><i class="fa-solid fa-magnifying-glass icon-font" aria-hidden="true"></i><input id="historySearchInput" placeholder="搜索历史会话标题或消息内容" /></div>
+      </div>
+      <div class="history"><div id="historyList"></div></div>
+      <div class="sidebar-footer">后端地址：<span id="apiBaseText"></span><br />左侧历史区已支持搜索、按日期分组和可见滚动条。</div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="top-title" id="topTitle">新对话</div>
+        <div class="top-right">
+          <select id="modelSelect" class="top-select"></select>
+          <button id="configBtn" class="top-mini-btn"><i class="fa-solid fa-sliders icon-font" aria-hidden="true"></i> 模型 / API 配置</button>
+          <button id="renameSessionBtn" class="top-mini-btn"><i class="fa-solid fa-pen-to-square icon-font" aria-hidden="true"></i> 重命名会话</button>
+          <button id="exportTextBtn" class="top-mini-btn"><i class="fa-solid fa-file-lines icon-font" aria-hidden="true"></i> 导出文本</button>
+          <button id="exportImageBtn" class="top-mini-btn"><i class="fa-solid fa-image icon-font" aria-hidden="true"></i> 导出截图</button>
+          <div class="top-status" id="modeSummary">标准模式</div>
+        </div>
+      </div>
+      <div class="chat" id="chat"><div class="chat-inner" id="chatInner"></div></div>
+      <div class="composer-wrap">
+        <div class="composer">
+          <div class="composer-toolbar"><div class="composer-modes"><label class="toggle-chip"><input type="checkbox" id="thinkingToggle" checked /><span>深度思考</span></label><label class="toggle-chip"><input type="checkbox" id="webToggle" /><span>联网模式</span></label></div></div>
+          <div class="input-box"><textarea id="questionInput" class="msg" rows="1" placeholder="输入你的问题，按 Enter 发送，Shift + Enter 换行"></textarea><button id="sendBtn" class="send-btn" aria-label="发送"><i class="fa-solid fa-paper-plane icon-font" aria-hidden="true"></i></button></div>
+          <div id="errorBox" class="hint error"></div>
+          <div class="hint">融合模式会展示 RAG 检索、KG 三元组、融合证据链、Embedding 模型和实际调用模型信息。</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+
+  <div id="graphModal" class="graph-modal">
+    <div class="graph-box">
+      <div class="graph-head">
+        <span>KG 证据图谱可视化</span>
+        <button id="graphCloseBtn" class="graph-close"><i class="fa-solid fa-xmark icon-font" aria-hidden="true"></i> 关闭</button>
+      </div>
+      <div class="graph-canvas-wrap"><div id="graphNetwork"></div></div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="configModal">
+    <div class="modal">
+      <div class="modal-header"><div><div class="modal-title">模型 / API 配置中心</div><div class="modal-sub">新增、编辑、删除多个配置；保存后立刻出现在顶部下拉框，但不影响聊天主界面布局。</div></div><button id="closeConfigBtn" class="close-btn" aria-label="关闭"><i class="fa-solid fa-xmark icon-font" aria-hidden="true"></i></button></div>
+      <div class="modal-body">
+        <div class="section-title">快捷填充模板</div><div id="providerGrid" class="provider-grid"></div>
+        <div class="section-title">Embedding 检索模型配置</div>
+        <div class="form-card" style="margin-bottom:18px;">
+          <div class="config-grid">
+            <div class="config-item"><label for="embeddingModelInput">Embedding 模型 ID</label><input id="embeddingModelInput" class="config-input" placeholder="留空则读取向量库 meta.json，例如 text-embedding-v4" /></div>
+            <div class="config-item"><label for="embeddingDimInput">Embedding 维度</label><input id="embeddingDimInput" class="config-input" type="number" min="0" placeholder="留空或 0 则读取 meta.json" /></div>
+            <div class="config-item full"><label for="embeddingBaseUrlInput">Embedding Base URL</label><input id="embeddingBaseUrlInput" class="config-input" placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1" /></div>
+            <div class="config-item full"><label for="embeddingApiKeyInput">Embedding API Key</label><input id="embeddingApiKeyInput" class="config-input" placeholder="用于检索向量化，保存在当前浏览器 localStorage" /></div>
+          </div>
+          <div class="row-actions"><button id="saveEmbeddingConfigBtn" class="primary-btn"><i class="fa-solid fa-floppy-disk icon-font" aria-hidden="true"></i> 保存 Embedding 配置</button><button id="resetEmbeddingConfigBtn" class="ghost-btn"><i class="fa-solid fa-rotate-left icon-font" aria-hidden="true"></i> 恢复默认 Embedding</button></div>
+          <div class="hint" style="margin-top:10px;">注意：自定义 Embedding 模型必须与已构建 FAISS 向量库的模型和维度一致，否则检索效果会变差或维度不匹配。</div>
+        </div>
+        <div class="section-title">编辑区</div>
+        <div class="form-card">
+          <div class="config-grid">
+            <div class="config-item"><label for="configNameInput">配置名称</label><input id="configNameInput" class="config-input" placeholder="例如：我的 OpenAI / 公司转发网关" /></div>
+            <div class="config-item"><label for="providerSelect">供应商</label><select id="providerSelect" class="config-select"></select></div>
+            <div class="config-item"><label for="customModelInput">模型 ID</label><input id="customModelInput" class="config-input" placeholder="例如：gpt-4o-mini / deepseek-chat / qwen-plus" /></div>
+            <div class="config-item"><label for="baseUrlInput">Base URL</label><input id="baseUrlInput" class="config-input" placeholder="例如：https://api.openai.com/v1" /></div>
+            <div class="config-item full"><label for="apiKeyInput">API Key</label><input id="apiKeyInput" class="config-input" placeholder="保存在当前浏览器 localStorage" /></div>
+            <div class="config-item full"><label for="configNoteInput">备注</label><textarea id="configNoteInput" class="config-textarea" placeholder="可选：记录用途，例如国际接口 / 本地中转 / 测试账号"></textarea></div>
+          </div>
+          <div class="row-actions"><button id="saveConfigBtn" class="primary-btn"><i class="fa-solid fa-floppy-disk icon-font" aria-hidden="true"></i> 保存配置</button><button id="resetConfigBtn" class="ghost-btn"><i class="fa-solid fa-rotate-right icon-font" aria-hidden="true"></i> 重置编辑区</button></div>
+        </div>
+        <div class="section-title" style="margin-top:18px;">已保存的自定义配置</div><div id="savedConfigList" class="saved-list"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8005";
+    const STORAGE_KEY = "dm_rag_llm_kg_chat_sessions_v3";
+    const LAST_MODEL_KEY = "dm_rag_llm_kg_last_model_v3";
+    const THINKING_TOGGLE_KEY = "dm_rag_llm_kg_enable_thinking_v3";
+    const WEB_TOGGLE_KEY = "dm_rag_llm_kg_enable_web_v3";
+    const CUSTOM_CONFIGS_KEY = "dm_rag_llm_kg_custom_configs_v3";
+    const EMBEDDING_CONFIG_KEY = "dm_rag_llm_kg_embedding_config_v3";
+    const BUILTIN_MODELS = [
+      { value: "deepseek-v3", label: "deepseek-v3（内置免费）", provider: "DeepSeek" },
+      { value: "deepseek-r1", label: "deepseek-r1（内置免费）", provider: "DeepSeek" },
+      { value: "kimi-2.5", label: "kimi-2.5（内置免费）", provider: "Moonshot" },
+      { value: "glm-5.1", label: "glm-5.1（内置免费）", provider: "智谱 GLM" },
+      { value: "qwen-3.6", label: "qwen-3.6（内置免费）", provider: "阿里云百炼" }
+    ];
+    const PROVIDER_TEMPLATES = [
+      { provider: "OpenAI", model: "gpt-4o-mini", base_url: "https://api.openai.com/v1", desc: "国际 · OpenAI 官方兼容接口" },
+      { provider: "Anthropic", model: "claude-sonnet-4-20250514", base_url: "https://api.anthropic.com/v1", desc: "国际 · 如走兼容网关更稳" },
+      { provider: "Google Gemini", model: "gemini-2.5-pro", base_url: "https://generativelanguage.googleapis.com/v1beta/openai/", desc: "国际 · Gemini OpenAI 兼容端点" },
+      { provider: "xAI", model: "grok-3-mini", base_url: "https://api.x.ai/v1", desc: "国际 · xAI 兼容接口" },
+      { provider: "DeepSeek", model: "deepseek-chat", base_url: "https://api.deepseek.com/v1", desc: "国内 · DeepSeek 官方接口" },
+      { provider: "Moonshot", model: "kimi-k2.5", base_url: "https://api.moonshot.cn/v1", desc: "国内 · Kimi 官方接口" },
+      { provider: "智谱 GLM", model: "glm-4.5-air", base_url: "https://open.bigmodel.cn/api/paas/v4", desc: "国内 · 智谱官方接口" },
+      { provider: "阿里云百炼", model: "qwen-plus", base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", desc: "国内 · 百炼兼容接口" },
+      { provider: "硅基流动", model: "deepseek-ai/DeepSeek-V3", base_url: "https://api.siliconflow.cn/v1", desc: "国内 · OpenAI 兼容网关" },
+      { provider: "OpenRouter", model: "openai/gpt-4o-mini", base_url: "https://openrouter.ai/api/v1", desc: "国际 · 多模型聚合平台" },
+      { provider: "Ollama", model: "qwen2.5:7b", base_url: "http://localhost:11434/v1", desc: "本地 · Ollama OpenAI 兼容端点" },
+      { provider: "自定义兼容网关", model: "your-model", base_url: "https://your-api.example.com/v1", desc: "自定义 · 任意兼容接口" }
+    ];
+    const SYSTEM_HINT = "start deep thinking, please always use the thinking mode";
+
+    const chat = document.getElementById("chat"), chatInner = document.getElementById("chatInner"), questionInput = document.getElementById("questionInput"), sendBtn = document.getElementById("sendBtn"), errorBox = document.getElementById("errorBox"), apiBaseText = document.getElementById("apiBaseText"), historyList = document.getElementById("historyList"), historySearchInput = document.getElementById("historySearchInput"), newChatBtn = document.getElementById("newChatBtn"), topTitle = document.getElementById("topTitle"), renameSessionBtn = document.getElementById("renameSessionBtn"), exportTextBtn = document.getElementById("exportTextBtn"), exportImageBtn = document.getElementById("exportImageBtn"), modelSelect = document.getElementById("modelSelect"), thinkingToggle = document.getElementById("thinkingToggle"), webToggle = document.getElementById("webToggle"), modeSummary = document.getElementById("modeSummary");
+    const graphModal = document.getElementById("graphModal"), graphCloseBtn = document.getElementById("graphCloseBtn"), graphNetworkContainer = document.getElementById("graphNetwork"); let graphNetworkInstance = null;
+    const configModal = document.getElementById("configModal"), configBtn = document.getElementById("configBtn"), closeConfigBtn = document.getElementById("closeConfigBtn"), providerGrid = document.getElementById("providerGrid"), providerSelect = document.getElementById("providerSelect"), configNameInput = document.getElementById("configNameInput"), customModelInput = document.getElementById("customModelInput"), baseUrlInput = document.getElementById("baseUrlInput"), apiKeyInput = document.getElementById("apiKeyInput"), configNoteInput = document.getElementById("configNoteInput"), saveConfigBtn = document.getElementById("saveConfigBtn"), resetConfigBtn = document.getElementById("resetConfigBtn"), savedConfigList = document.getElementById("savedConfigList"), embeddingModelInput = document.getElementById("embeddingModelInput"), embeddingDimInput = document.getElementById("embeddingDimInput"), embeddingBaseUrlInput = document.getElementById("embeddingBaseUrlInput"), embeddingApiKeyInput = document.getElementById("embeddingApiKeyInput"), saveEmbeddingConfigBtn = document.getElementById("saveEmbeddingConfigBtn"), resetEmbeddingConfigBtn = document.getElementById("resetEmbeddingConfigBtn");
+    apiBaseText.textContent = API_BASE;
+
+    let editingConfigId = "";
+    function getStoredBool(key, fallback=false){ const raw = localStorage.getItem(key); return raw === null ? fallback : raw === "true"; }
+    function setStoredBool(key, value){ localStorage.setItem(key, value ? "true" : "false"); }
+    function loadJSON(key, fallback){ try { return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback)); } catch { return fallback; } }
+    function saveJSON(key, value){ localStorage.setItem(key, JSON.stringify(value)); }
+    function defaultEmbeddingConfig(){ return { base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1", api_key: "YOUR_DASHSCOPE_API_KEY", model: "", dimensions: 0 }; }
+    function loadEmbeddingConfig(){ return Object.assign(defaultEmbeddingConfig(), loadJSON(EMBEDDING_CONFIG_KEY, defaultEmbeddingConfig())); }
+    function saveEmbeddingConfig(){ const cfg={ base_url: embeddingBaseUrlInput.value.trim() || defaultEmbeddingConfig().base_url, api_key: embeddingApiKeyInput.value.trim() || defaultEmbeddingConfig().api_key, model: embeddingModelInput.value.trim(), dimensions: Number(embeddingDimInput.value || 0) || 0 }; saveJSON(EMBEDDING_CONFIG_KEY, cfg); alert("Embedding 配置已保存。"); }
+    function resetEmbeddingConfig(){ localStorage.removeItem(EMBEDDING_CONFIG_KEY); fillEmbeddingConfigForm(); }
+    function fillEmbeddingConfigForm(){ const cfg=loadEmbeddingConfig(); if(embeddingBaseUrlInput){ embeddingBaseUrlInput.value=cfg.base_url || ""; embeddingApiKeyInput.value=cfg.api_key || ""; embeddingModelInput.value=cfg.model || ""; embeddingDimInput.value=cfg.dimensions || 0; } }
+    function selectedEmbeddingConfig(){ return loadEmbeddingConfig(); }
+    function getModeSummaryText(){ const modes=[]; if(thinkingToggle.checked) modes.push("深度思考"); if(webToggle.checked) modes.push("联网模式"); return modes.length ? modes.join(" · ") : "标准模式"; }
+    function refreshModeSummary(){ modeSummary.textContent = getModeSummaryText(); }
+    function autoResize(el){ el.style.height="auto"; el.style.height=Math.min(el.scrollHeight,180)+"px"; }
+    function scrollToBottom(){ chat.scrollTop = chat.scrollHeight; }
+    function escapeHtml(str){ return String(str || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#39;"); }
+    function uid(prefix="id"){ return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2,8)}`; }
+    function maskSecret(secret){ secret = String(secret || ""); if (!secret) return ""; if (secret.length <= 8) return "*".repeat(secret.length); return `${secret.slice(0,4)}${"*".repeat(Math.max(4, secret.length - 8))}${secret.slice(-4)}`; }
+    function getStoredModel(){ const val = localStorage.getItem(LAST_MODEL_KEY) || BUILTIN_MODELS[0].value; return val; }
+
+    let customConfigs = loadJSON(CUSTOM_CONFIGS_KEY, []);
+    let sessions = loadJSON(STORAGE_KEY, []);
+    let currentSessionId = sessions.length ? sessions[0].id : "";
+
+    function getAllModelOptions(){ return [...BUILTIN_MODELS, ...customConfigs.map(cfg => ({ value: `custom:${cfg.id}`, label: `${cfg.name}（自定义）`, provider: cfg.provider }))]; }
+    function renderModelSelect(selectedValue){ const all = getAllModelOptions(); modelSelect.innerHTML = `<optgroup label="内置免费模型">${BUILTIN_MODELS.map(m => `<option value="${m.value}">${m.label}</option>`).join("")}</optgroup>` + (customConfigs.length ? `<optgroup label="自定义配置">${customConfigs.map(c => `<option value="custom:${c.id}">${escapeHtml(c.name)}（自定义）</option>`).join("")}</optgroup>` : ""); const target = all.find(x => x.value === selectedValue) ? selectedValue : BUILTIN_MODELS[0].value; modelSelect.value = target; localStorage.setItem(LAST_MODEL_KEY, target); }
+    function loadSessions(){ return loadJSON(STORAGE_KEY, []); }
+    function saveSessions(){ saveJSON(STORAGE_KEY, sessions); }
+    function saveConfigs(){ saveJSON(CUSTOM_CONFIGS_KEY, customConfigs); }
+    function getCurrentSession(){ return sessions.find(s => s.id === currentSessionId); }
+    function createSession(title="新对话"){ const session={ id:uid("s"), title, created_at:new Date().toISOString(), preferred_model:modelSelect.value || getStoredModel(), enable_thinking:thinkingToggle.checked, enable_web_search:webToggle.checked, messages:[] }; sessions.unshift(session); saveSessions(); return session; }
+    function ensureSession(){ if(!sessions.length){ const s=createSession(); currentSessionId=s.id; } else if(!currentSessionId){ currentSessionId=sessions[0].id; } }
+    function formatTime(iso){ const d=new Date(iso); const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'), h=String(d.getHours()).padStart(2,'0'), min=String(d.getMinutes()).padStart(2,'0'); return `${y}-${m}-${day} ${h}:${min}`; }
+    function getRelativeGroup(iso){ const d=new Date(iso); const now=new Date(); const startToday=new Date(now.getFullYear(), now.getMonth(), now.getDate()); const startTarget=new Date(d.getFullYear(), d.getMonth(), d.getDate()); const diff=Math.round((startToday - startTarget)/(24*3600*1000)); if(diff===0) return "今天"; if(diff===1) return "昨天"; if(diff<=7) return "近7天"; return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; }
+    function sessionSearchText(s){ return [s.title, ...(s.messages||[]).map(m => `${m.content || ''} ${m.model_name || ''} ${m.actual_model || ''}`)].join(" ").toLowerCase(); }
+    function renderHistory(){ const q=(historySearchInput.value || "").trim().toLowerCase(); const filtered=sessions.filter(s => !q || sessionSearchText(s).includes(q)); const groups={}; filtered.forEach(s => { const k=getRelativeGroup(s.created_at); if(!groups[k]) groups[k]=[]; groups[k].push(s); }); const groupOrder=Object.keys(groups).sort((a,b)=>{ const special=["今天","昨天","近7天"]; const ia=special.indexOf(a), ib=special.indexOf(b); if(ia!==-1 || ib!==-1){ return (ia===-1?99:ia) - (ib===-1?99:ib); } return a < b ? 1 : -1; }); historyList.innerHTML = filtered.length ? groupOrder.map(group => `<div class="history-group"><div class="group-label">${group}</div>${groups[group].map(s => `<div class="history-item ${s.id===currentSessionId?'active':''}"><div class="history-row"><div class="history-main" onclick="selectSession('${s.id}')"><div class="history-item-title">${escapeHtml(s.title || '新对话')}</div><div class="history-item-time">${formatTime(s.created_at)} · ${(s.messages||[]).length} 条</div></div><div class="history-actions"><button class="history-btn rename" title="重命名" aria-label="重命名" onclick="renameSession('${s.id}')"><i class="fa-solid fa-pen-to-square icon-font" aria-hidden="true"></i></button><button class="history-btn delete" title="删除" aria-label="删除" onclick="deleteSession('${s.id}')"><i class="fa-solid fa-trash icon-font" aria-hidden="true"></i></button></div></div></div>`).join("")}</div>`).join("") : `<div class="hint">没有匹配到历史会话。</div>`; }
+    function clearWelcome(){ const welcome = chatInner.querySelector('.welcome'); if(welcome) welcome.remove(); }
+    function welcomeHtml(){ return `<div class="welcome"><div class="welcome-title">今天想了解什么？</div><div>你可以提问糖尿病定义、症状、治疗、药物、不良反应、检查、英文名等问题。</div><div class="welcome-examples"><div class="chip">糖尿病视网膜病变的主要症状是什么？</div><div class="chip">格列本脲有哪些不良反应？</div><div class="chip">妊娠期糖尿病的英文名称是什么？</div><div class="chip">2型糖尿病的治疗方法有哪些？</div><div class="chip">糖尿病常见检查项目有哪些？</div></div></div>`; }
+    function renderUserHtml(text, modelName=""){ return `<div class="message-row"><div class="avatar user">问</div><div class="bubble-wrap"><div class="role">你 ${modelName ? `· 模型 ${escapeHtml(modelName)}` : ''}</div><div class="bubble">${escapeHtml(text)}</div></div></div>`; }
+    function badge(type){
+      const t = (type || 'fusion').toLowerCase();
+      return `<span class="badge ${t==='kg'?'kg':t==='rag'?'rag':'fusion'}">${escapeHtml(t.toUpperCase())}</span>`;
+    }
+    function renderEvidenceHtml(items){
+      if(!items || !items.length) return `<div class="evidence-card">未返回融合证据。请检查 RAG 索引、Neo4j 和后端检索配置。</div>`;
+      return items.map((e,i)=>{
+        const type = e.source_type || (e.center_name ? 'kg' : 'rag');
+        const score = Number(e.fusion_score || e.score || 0).toFixed(4);
+        const kgLine = type === 'kg'
+          ? `关系：${escapeHtml(e.center_name || '-')} → ${escapeHtml(e.rel_type_zh || e.rel_type || '-')} → ${escapeHtml(e.neighbor_name || '-')}<br />`
+          : `来源：${escapeHtml(e.source_file || '-')} / doc=${escapeHtml(e.doc_id || '-')} / paragraph=${escapeHtml(e.paragraph_id || '-')}<br />`;
+        return `<div class="evidence-card" style="margin-bottom:10px;">${badge(type)}<b>证据 ${i+1}</b> · score=${escapeHtml(score)}<br />${kgLine}<div style="margin-top:6px;">${escapeHtml(e.text || e.evidence || '')}</div></div>`;
+      }).join('');
+    }
+    function renderBotHtml(msg, index){ const metaId=uid('meta'); const evidenceHtml=renderEvidenceHtml(msg.evidence_chain || []); return `<div class="message-row"><div class="avatar bot">答</div><div class="bubble-wrap"><div class="role">系统 · ${escapeHtml(msg.model_name || '-')} · KG+RAG Fusion</div><div class="bubble">${escapeHtml(msg.content || '')}</div><div class="answer-actions"><button class="mini-btn copy-btn" data-index="${index}"><i class="fa-solid fa-copy icon-font" aria-hidden="true"></i> 复制回答</button><button class="mini-btn graph-btn" data-index="${index}"><i class="fa-solid fa-diagram-project icon-font" aria-hidden="true"></i> KG 图谱</button></div><div class="meta-box"><div class="meta-header" onclick="toggleMeta('${metaId}')"><span>查看融合检索 / 模型回答信息</span><span>展开 / 收起</span></div><div class="meta-content" id="${metaId}"><div class="meta-grid"><div class="meta-item"><div class="meta-label">展示模型</div><div class="meta-value">${escapeHtml(msg.model_name || '-')}</div></div><div class="meta-item"><div class="meta-label">实际调用模型</div><div class="meta-value">${escapeHtml(msg.actual_model || '-')}</div></div><div class="meta-item"><div class="meta-label">供应商</div><div class="meta-value">${escapeHtml(msg.provider_name || '-')}</div></div><div class="meta-item"><div class="meta-label">Base URL</div><div class="meta-value">${escapeHtml(msg.base_url || '-')}</div></div><div class="meta-item"><div class="meta-label">API Key</div><div class="meta-value">${escapeHtml(msg.api_key_masked || '-')}</div></div><div class="meta-item"><div class="meta-label">系统提示</div><div class="meta-value">${escapeHtml(msg.system_hint || SYSTEM_HINT)}</div></div><div class="meta-item"><div class="meta-label">模式开关</div><div class="meta-value">${msg.enable_thinking ? '深度思考：开' : '深度思考：关'} / ${msg.enable_web_search ? '联网模式：开' : '联网模式：关'}</div></div><div class="meta-item"><div class="meta-label">识别实体</div><div class="meta-value">${escapeHtml(msg.entity || '未识别')}</div></div><div class="meta-item"><div class="meta-label">问题类型</div><div class="meta-value">${escapeHtml(msg.intent || '-')}</div></div><div class="meta-item"><div class="meta-label">检索数量</div><div class="meta-value">${escapeHtml(msg.retrieved_count ?? 0)} 条</div></div><div class="meta-item"><div class="meta-label">检索耗时</div><div class="meta-value">${escapeHtml(msg.retrieval_time_sec ?? '-')} 秒</div></div><div class="meta-item"><div class="meta-label">生成耗时</div><div class="meta-value">${escapeHtml(msg.generation_time_sec ?? '-')} 秒</div></div><div class="meta-item"><div class="meta-label">总响应时间</div><div class="meta-value">${escapeHtml(msg.total_time_sec ?? '-')} 秒</div></div><div class="meta-item"><div class="meta-label">向量库目录</div><div class="meta-value">${escapeHtml(msg.rag_index_dir || '-')}</div></div><div class="meta-item"><div class="meta-label">Embedding 模型</div><div class="meta-value">${escapeHtml(msg.embedding_model || '-')}</div></div><div class="meta-item"><div class="meta-label">Embedding Base URL</div><div class="meta-value">${escapeHtml(msg.embedding_base_url || '-')}</div></div><div class="meta-item"><div class="meta-label">Embedding 维度</div><div class="meta-value">${escapeHtml(msg.embedding_dim || '-')}</div></div></div><div class="hint-card">回答由“FAISS RAG 检索 + Neo4j KG 检索 + RRF 融合 + 所选大模型”生成；如证据不足，后端提示模型回答“根据现有资料无法确定”。</div><div style="height:12px"></div><h4>融合证据链</h4>${renderEvidenceHtml(msg.evidence_chain || [])}<h4>RAG 原始证据</h4>${renderEvidenceHtml(msg.rag_evidence || [])}<h4>KG 原始证据</h4>${renderEvidenceHtml(msg.kg_evidence || [])}</div></div></div></div>`; }
+    function renderCurrentSession(){ const session=getCurrentSession(); chatInner.innerHTML=''; topTitle.textContent=session?.title || '新对话'; if(!session || !session.messages.length){ chatInner.innerHTML = welcomeHtml(); bindChips(); return; } let botIndex=0; session.messages.forEach(msg=>{ chatInner.insertAdjacentHTML('beforeend', msg.role==='user' ? renderUserHtml(msg.content, msg.model_name) : renderBotHtml(msg, botIndex++)); }); bindMessageActionButtons(); scrollToBottom(); }
+    function bindMessageActionButtons(){
+      const session=getCurrentSession(); if(!session) return;
+      const botMessages=session.messages.filter(m=>m.role==='bot');
+      chatInner.querySelectorAll('.copy-btn').forEach(btn=>{
+        btn.onclick = async ()=>{
+          const idx=Number(btn.dataset.index); const text=botMessages[idx]?.content || '';
+          try{ await navigator.clipboard.writeText(text); btn.textContent='已复制'; setTimeout(()=>btn.textContent='复制回答',1200); }
+          catch{ btn.textContent='复制失败'; setTimeout(()=>btn.textContent='复制回答',1200); }
+        };
+      });
+      chatInner.querySelectorAll('.graph-btn').forEach(btn=>{
+        btn.onclick = ()=>{
+          const idx=Number(btn.dataset.index);
+          openGraph(botMessages[idx]?.kg_evidence || botMessages[idx]?.evidence_chain || []);
+        };
+      });
+    }
+    function bindChips(){ document.querySelectorAll('.chip').forEach(el => el.onclick = ()=> askQuestion(el.textContent.trim())); }
+    async function typewriter(el, text, speed=10){ el.textContent=''; for(let i=0;i<text.length;i++){ el.textContent += text[i]; scrollToBottom(); await new Promise(r=>setTimeout(r,speed)); } }
+    function addBotLoading(){ const id=uid('loading'); chatInner.insertAdjacentHTML('beforeend', `<div class="message-row" id="${id}"><div class="avatar bot">答</div><div class="bubble-wrap"><div class="role">系统 · ${escapeHtml(modelSelect.value)}</div><div class="bubble"><span class="typing"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span></div></div></div>`); scrollToBottom(); return id; }
+    function selectedCustomConfig(){ if(!modelSelect.value.startsWith('custom:')) return null; const id=modelSelect.value.slice(7); const cfg=customConfigs.find(x=>x.id===id); if(!cfg) return null; return { config_id: cfg.id, display_name: cfg.name, provider_name: cfg.provider, base_url: cfg.base_url, api_key: cfg.api_key, model: cfg.model, note: cfg.note || '' }; }
+    function addUserMessageToSession(text){ const session=getCurrentSession(); if(!session) return; if(!session.messages.length){ session.title = text.length > 18 ? text.slice(0,18) + '...' : text; } session.preferred_model = modelSelect.value; session.enable_thinking = thinkingToggle.checked; session.enable_web_search = webToggle.checked; session.messages.push({ role:'user', content:text, model_name:modelSelect.value, created_at:new Date().toISOString() }); saveSessions(); renderHistory(); clearWelcome(); chatInner.insertAdjacentHTML('beforeend', renderUserHtml(text, modelSelect.value)); scrollToBottom(); topTitle.textContent=session.title; }
+    async function addBotMessageToSession(data, loadingId){ const loadingEl=document.getElementById(loadingId); if(loadingEl) loadingEl.remove(); const session=getCurrentSession(); if(!session) return; const botMsg={ role:'bot', content:data.answer || '未返回答案。', entity:data.entity || '', intent:data.intent || '', model_name:data.model_name || modelSelect.value, actual_model:data.actual_model || '', provider_name:data.provider_name || '', base_url:data.base_url || '', api_key_masked:data.api_key_masked || '', system_hint: data.system_hint || (thinkingToggle.checked ? SYSTEM_HINT : '未开启深度思考提示'), enable_thinking:thinkingToggle.checked, enable_web_search:webToggle.checked, retrieved_count:data.retrieved_count ?? 0, retrieval_time_sec:data.retrieval_time_sec ?? 0, generation_time_sec:data.generation_time_sec ?? 0, total_time_sec:data.total_time_sec ?? 0, evidence_chain:data.evidence_chain || [], rag_evidence:data.rag_evidence || [], kg_evidence:data.kg_evidence || [], rag_count:data.rag_count ?? 0, kg_count:data.kg_count ?? 0, fusion_count:data.fusion_count ?? 0, retrieved_context:data.retrieved_context || '', rag_index_dir:data.rag_index_dir || '', embedding_model:data.embedding_model || '', embedding_base_url:data.embedding_base_url || '', embedding_dim:data.embedding_dim || '', created_at:new Date().toISOString() }; session.messages.push(botMsg); saveSessions(); renderHistory(); clearWelcome(); const tempId=uid('bot'); chatInner.insertAdjacentHTML('beforeend', `<div class="message-row" id="${tempId}"><div class="avatar bot">答</div><div class="bubble-wrap"><div class="role">系统 · ${escapeHtml(botMsg.model_name)}</div><div class="bubble" id="${tempId}_bubble"></div></div></div>`); await typewriter(document.getElementById(`${tempId}_bubble`), botMsg.content, 10); document.getElementById(tempId)?.remove(); const botIndex=session.messages.filter(m=>m.role==='bot').length - 1; chatInner.insertAdjacentHTML('beforeend', renderBotHtml(botMsg, botIndex)); bindMessageActionButtons(); scrollToBottom(); }
+    async function askQuestion(prefill=null){ const question=(prefill ?? questionInput.value).trim(); if(!question) return; errorBox.textContent=''; addUserMessageToSession(question); questionInput.value=''; autoResize(questionInput); sendBtn.disabled=true; modelSelect.disabled=true; const loadingId=addBotLoading(); try{ const response=await fetch(`${API_BASE}/qa`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ question, model_name:modelSelect.value.startsWith('custom:') ? 'custom' : modelSelect.value, enable_thinking:thinkingToggle.checked, enable_web_search:webToggle.checked, rag_top_k:5, kg_top_k:10, fusion_top_k:8, custom_model_config:selectedCustomConfig(), embedding_config:selectedEmbeddingConfig() }) }); if(!response.ok){ throw new Error(`请求失败：${response.status} ${await response.text()}`); } const data=await response.json(); await addBotMessageToSession(data, loadingId); } catch(err){ document.getElementById(loadingId)?.remove(); const session=getCurrentSession(); if(session){ session.messages.push({ role:'bot', content:'请求失败，请检查 KG+RAG 后端服务、Neo4j、FAISS 索引、接口地址或模型配置。', intent:'error', model_name:modelSelect.value, actual_model:'', provider_name:'', base_url:'', api_key_masked:'', created_at:new Date().toISOString() }); saveSessions(); } renderCurrentSession(); renderHistory(); errorBox.textContent = err.message || '发生未知错误。'; } finally { sendBtn.disabled=false; modelSelect.disabled=false; } }
+    function selectSession(id){ currentSessionId=id; const session=getCurrentSession(); if(session?.preferred_model) renderModelSelect(session.preferred_model); thinkingToggle.checked = session?.enable_thinking ?? getStoredBool(THINKING_TOGGLE_KEY, true); webToggle.checked = session?.enable_web_search ?? getStoredBool(WEB_TOGGLE_KEY, false); refreshModeSummary(); renderHistory(); renderCurrentSession(); }
+    function deleteSession(id){ const target=sessions.find(s=>s.id===id); if(!target) return; if(!confirm(`确定删除会话“${target.title || '新对话'}”吗？`)) return; sessions=sessions.filter(s=>s.id!==id); if(!sessions.length){ const s=createSession(); currentSessionId=s.id; } else if(currentSessionId===id){ currentSessionId=sessions[0].id; } saveSessions(); renderHistory(); renderCurrentSession(); }
+    function renameSession(id){ const target=sessions.find(s=>s.id===id); if(!target) return; const title=(prompt('请输入新的会话名称：', target.title || '新对话') || '').trim(); if(!title) return; target.title=title; saveSessions(); renderHistory(); renderCurrentSession(); }
+    window.selectSession=selectSession; window.deleteSession=deleteSession; window.renameSession=renameSession; window.toggleMeta=(id)=>document.getElementById(id)?.classList.toggle('show');
+
+    function openConfigModal(){ configModal.classList.add('show'); fillEmbeddingConfigForm(); renderConfigList(); }
+    function closeConfigModal(){ configModal.classList.remove('show'); }
+    function resetConfigEditor(){ editingConfigId=''; configNameInput.value=''; providerSelect.value=PROVIDER_TEMPLATES[0].provider; customModelInput.value=''; baseUrlInput.value=''; apiKeyInput.value=''; configNoteInput.value=''; }
+    function applyTemplate(t){ providerSelect.value=t.provider; if(!configNameInput.value.trim()) configNameInput.value=`我的${t.provider}`; if(!customModelInput.value.trim()) customModelInput.value=t.model; if(!baseUrlInput.value.trim()) baseUrlInput.value=t.base_url; }
+    function renderProviderTemplates(){ providerGrid.innerHTML = PROVIDER_TEMPLATES.map((t, i) => `<div class="provider-card" data-index="${i}"><div class="provider-name">${escapeHtml(t.provider)}</div><div class="provider-desc">${escapeHtml(t.desc)}<br />模型建议：${escapeHtml(t.model)}<br />地址：${escapeHtml(t.base_url)}</div></div>`).join(''); providerGrid.querySelectorAll('.provider-card').forEach(card => card.onclick = ()=> applyTemplate(PROVIDER_TEMPLATES[Number(card.dataset.index)])); providerSelect.innerHTML = PROVIDER_TEMPLATES.map(t => `<option value="${escapeHtml(t.provider)}">${escapeHtml(t.provider)}</option>`).join(''); }
+    function renderConfigList(){ savedConfigList.innerHTML = customConfigs.length ? customConfigs.map(cfg => `<div class="saved-item"><div class="saved-top"><div><div class="saved-name">${escapeHtml(cfg.name)}</div><div class="saved-meta"><span class="tag">${escapeHtml(cfg.provider)}</span><span class="tag">${escapeHtml(cfg.model)}</span><br />Base URL：${escapeHtml(cfg.base_url)}<br />API Key：${escapeHtml(maskSecret(cfg.api_key))}${cfg.note ? `<br />备注：${escapeHtml(cfg.note)}` : ''}</div></div><div class="saved-actions"><button class="ghost-btn" onclick="editConfig('${cfg.id}')"><i class="fa-solid fa-pen-to-square icon-font" aria-hidden="true"></i> 编辑</button><button class="ghost-btn" onclick="useConfig('${cfg.id}')"><i class="fa-solid fa-check icon-font" aria-hidden="true"></i> 选用</button><button class="ghost-btn" onclick="deleteConfig('${cfg.id}')"><i class="fa-solid fa-trash icon-font" aria-hidden="true"></i> 删除</button></div></div></div>`).join('') : `<div class="hint">还没有保存的自定义配置。</div>`; }
+    function saveConfig(){ const payload={ id: editingConfigId || uid('cfg'), name: configNameInput.value.trim() || `我的${providerSelect.value}`, provider: providerSelect.value, model: customModelInput.value.trim(), base_url: baseUrlInput.value.trim(), api_key: apiKeyInput.value.trim(), note: configNoteInput.value.trim() }; if(!payload.model || !payload.base_url || !payload.api_key){ alert('模型 ID、Base URL、API Key 不能为空。'); return; } const idx=customConfigs.findIndex(x=>x.id===payload.id); if(idx>=0) customConfigs[idx]=payload; else customConfigs.unshift(payload); saveConfigs(); renderModelSelect(`custom:${payload.id}`); renderConfigList(); renderHistory(); resetConfigEditor(); }
+    function editConfig(id){ const cfg=customConfigs.find(x=>x.id===id); if(!cfg) return; editingConfigId=id; configNameInput.value=cfg.name || ''; providerSelect.value=cfg.provider || PROVIDER_TEMPLATES[0].provider; customModelInput.value=cfg.model || ''; baseUrlInput.value=cfg.base_url || ''; apiKeyInput.value=cfg.api_key || ''; configNoteInput.value=cfg.note || ''; openConfigModal(); }
+    function deleteConfig(id){ const cfg=customConfigs.find(x=>x.id===id); if(!cfg) return; if(!confirm(`确定删除配置“${cfg.name}”吗？`)) return; customConfigs = customConfigs.filter(x=>x.id!==id); saveConfigs(); if(modelSelect.value === `custom:${id}`) renderModelSelect(BUILTIN_MODELS[0].value); renderConfigList(); }
+    function useConfig(id){ renderModelSelect(`custom:${id}`); closeConfigModal(); }
+    window.editConfig=editConfig; window.deleteConfig=deleteConfig; window.useConfig=useConfig;
+
+
+    function nodeColor(type){
+      const t=String(type||"");
+      if(t.includes("疾病")||/Disease/i.test(t))return {background:"#fee2e2",border:"#ef4444",highlight:{background:"#fecaca",border:"#dc2626"}};
+      if(t.includes("药")||/Drug/i.test(t))return {background:"#dbeafe",border:"#2563eb",highlight:{background:"#bfdbfe",border:"#1d4ed8"}};
+      if(t.includes("症状")||/Symptom/i.test(t))return {background:"#fef3c7",border:"#f59e0b",highlight:{background:"#fde68a",border:"#d97706"}};
+      if(t.includes("检查")||/Test/i.test(t))return {background:"#dcfce7",border:"#16a34a",highlight:{background:"#bbf7d0",border:"#15803d"}};
+      if(t.includes("治疗")||/Treatment/i.test(t))return {background:"#ede9fe",border:"#7c3aed",highlight:{background:"#ddd6fe",border:"#6d28d9"}};
+      return {background:"#eef2ff",border:"#6366f1",highlight:{background:"#e0e7ff",border:"#4f46e5"}};
+    }
+    function openGraph(items){
+      graphModal.classList.add("show");
+      setTimeout(()=>drawGraph(items || []), 80);
+    }
+    function closeGraph(){
+      graphModal.classList.remove("show");
+      if(graphNetworkInstance){graphNetworkInstance.destroy(); graphNetworkInstance=null;}
+    }
+    function drawGraph(items){
+      if(graphNetworkInstance) graphNetworkInstance.destroy();
+      const nodesMap=new Map(), edges=[], edgeSeen=new Set();
+      (items||[]).forEach((e)=>{
+        if((e.source_type || '').toLowerCase() === 'rag' && !e.center_name) return;
+        const c=e.center_name || "";
+        const n=e.neighbor_name || "";
+        if(c && !nodesMap.has(c)) nodesMap.set(c,{id:c,label:c,title:`${c}\n${e.center_etype_zh||e.center_etype||""}`,shape:"dot",size:22,color:nodeColor(e.center_etype_zh||e.center_etype),font:{size:16,face:"Microsoft YaHei"}});
+        if(n && !nodesMap.has(n)) nodesMap.set(n,{id:n,label:n,title:`${n}\n${e.neighbor_etype_zh||e.neighbor_etype||""}`,shape:"dot",size:18,color:nodeColor(e.neighbor_etype_zh||e.neighbor_etype),font:{size:14,face:"Microsoft YaHei"}});
+        if(c && n){
+          const label=e.rel_type_zh||e.rel_type||"关系";
+          const key=`${c}->${label}->${n}`;
+          if(!edgeSeen.has(key)){
+            edgeSeen.add(key);
+            edges.push({from:c,to:n,label,arrows:"to",title:e.evidence||e.text||label,color:{color:"#64748b",highlight:"#10a37f"},font:{align:"middle",size:12,face:"Microsoft YaHei"},smooth:{type:"dynamic"}});
+          }
+        }
+      });
+      if(!nodesMap.size){nodesMap.set("暂无 KG 证据",{id:"暂无 KG 证据",label:"暂无 KG 证据",shape:"box",color:{background:"#f3f4f6",border:"#9ca3af"}})}
+      graphNetworkInstance = new vis.Network(graphNetworkContainer, {nodes:new vis.DataSet([...nodesMap.values()]), edges:new vis.DataSet(edges)}, {
+        layout:{improvedLayout:true},
+        physics:{enabled:true,stabilization:{iterations:120},barnesHut:{gravitationalConstant:-3600,springLength:150,springConstant:.04}},
+        interaction:{hover:true,tooltipDelay:120,navigationButtons:true,keyboard:true},
+        nodes:{borderWidth:2,shadow:true},
+        edges:{width:1.6,shadow:false}
+      });
+      graphNetworkInstance.once("stabilizationIterationsDone",()=>graphNetworkInstance.fit({animation:{duration:500,easingFunction:"easeInOutQuad"}}));
+    }
+
+    historySearchInput.addEventListener('input', renderHistory);
+    newChatBtn.addEventListener('click', ()=>{ const s=createSession(); currentSessionId=s.id; saveSessions(); renderHistory(); renderCurrentSession(); questionInput.focus(); });
+    renameSessionBtn.addEventListener('click', ()=>{ const s=getCurrentSession(); if(s) renameSession(s.id); });
+    configBtn.addEventListener('click', openConfigModal); closeConfigBtn.addEventListener('click', closeConfigModal); configModal.addEventListener('click', e=>{ if(e.target===configModal) closeConfigModal(); }); graphCloseBtn.addEventListener('click', closeGraph); graphModal.addEventListener('click', e=>{ if(e.target===graphModal) closeGraph(); });
+    saveConfigBtn.addEventListener('click', saveConfig); resetConfigBtn.addEventListener('click', resetConfigEditor); saveEmbeddingConfigBtn.addEventListener('click', saveEmbeddingConfig); resetEmbeddingConfigBtn.addEventListener('click', resetEmbeddingConfig);
+    thinkingToggle.addEventListener('change', ()=>{ setStoredBool(THINKING_TOGGLE_KEY, thinkingToggle.checked); refreshModeSummary(); const s=getCurrentSession(); if(s){ s.enable_thinking=thinkingToggle.checked; saveSessions(); } });
+    webToggle.addEventListener('change', ()=>{ setStoredBool(WEB_TOGGLE_KEY, webToggle.checked); refreshModeSummary(); const s=getCurrentSession(); if(s){ s.enable_web_search=webToggle.checked; saveSessions(); } });
+    modelSelect.addEventListener('change', ()=>{ localStorage.setItem(LAST_MODEL_KEY, modelSelect.value); const s=getCurrentSession(); if(s){ s.preferred_model=modelSelect.value; saveSessions(); renderHistory(); } });
+    sendBtn.addEventListener('click', ()=>askQuestion()); questionInput.addEventListener('input', ()=>autoResize(questionInput)); questionInput.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); askQuestion(); } });
+    exportTextBtn.addEventListener('click', ()=>{ const s=getCurrentSession(); if(!s) return; let content=`糖尿病大模型+RAG+知识图谱问答系统\n会话名称：${s.title}\n创建时间：${formatTime(s.created_at)}\n默认模型：${s.preferred_model || '-'}\n系统提示：${SYSTEM_HINT}\n深度思考：${thinkingToggle.checked?'开启':'关闭'}\n联网模式：${webToggle.checked?'开启':'关闭'}\n\n`; (s.messages||[]).forEach(msg=>{ if(msg.role==='user'){ content += `【用户】${msg.content}\n模型：${msg.model_name || '-'}\n\n`; } else { content += `【系统】${msg.content}\n展示模型：${msg.model_name || '-'}\n实际调用模型：${msg.actual_model || '-'}\n供应商：${msg.provider_name || '-'}\nBase URL：${msg.base_url || '-'}\n问题类型：${msg.intent || '-'}\n识别实体：${msg.entity || '-'}\n检索数量：${msg.retrieved_count || 0}\n检索耗时：${msg.retrieval_time_sec || 0} 秒\n总响应时间：${msg.total_time_sec || 0} 秒\n证据：${(msg.evidence_chain || []).map((e,i)=>`\\n[${i+1}] ${e.source_file || '-'} score=${Number(e.score || 0).toFixed(4)} ${e.text || ''}`).join('')}\n\n`; }}); const blob=new Blob([content], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${s.title || '会话记录'}.txt`; a.click(); URL.revokeObjectURL(a.href); });
+    exportImageBtn.addEventListener('click', async ()=>{ const s=getCurrentSession(); if(!s) return; try{ const canvas=await html2canvas(document.getElementById('chatInner'), { backgroundColor:'#ffffff', scale:2, useCORS:true }); const a=document.createElement('a'); a.href=canvas.toDataURL('image/png'); a.download=`${s.title || '会话截图'}.png`; a.click(); }catch{ alert('截图导出失败，请稍后重试。'); } });
+
+    renderProviderTemplates(); resetConfigEditor(); renderModelSelect(getStoredModel()); thinkingToggle.checked=getStoredBool(THINKING_TOGGLE_KEY, true); webToggle.checked=getStoredBool(WEB_TOGGLE_KEY, false); refreshModeSummary(); ensureSession(); const session=getCurrentSession(); if(session?.preferred_model) renderModelSelect(session.preferred_model); renderHistory(); renderCurrentSession();
+  </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>

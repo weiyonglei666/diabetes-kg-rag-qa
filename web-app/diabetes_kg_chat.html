@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>基于纯知识图谱的糖尿病问答系统</title>
+
+  <!-- 图谱交互库 -->
+  <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+  <!-- 截图导出 -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+
+  <!-- 开源图标库：Font Awesome Free -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <style>
+*{box-sizing:border-box}
+    :root{--bg:#f7f7f8;--sidebar:#f3f4f6;--panel:#fff;--border:#e5e7eb;--text:#111827;--muted:#6b7280;--primary:#10a37f;--primary-hover:#0e8f70;--danger:#ef4444;--info:#2563eb;--shadow:0 1px 2px rgba(0,0,0,.05)}
+    body{margin:0;font-family:"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+    .app{display:grid;grid-template-columns:300px 1fr;height:100vh}
+    .sidebar{background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;min-width:0}
+    .sidebar-top,.brand-box,.sidebar-footer{padding:16px;border-bottom:1px solid var(--border)}
+    .new-chat-btn,.top-mini-btn,.mini-btn,.primary-btn,.ghost-btn,.send-btn,.close-btn,.history-btn{border:none;border-radius:12px;cursor:pointer}
+    .new-chat-btn{width:100%;padding:12px 14px;background:#fff;border:1px solid var(--border);font-weight:700}
+    .search-box{margin-top:10px;display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:12px;padding:10px 12px}
+    .search-box input{border:none;outline:none;background:transparent;width:100%;font-size:14px}
+    .brand{font-size:22px;font-weight:800;margin-bottom:8px}
+    .brand-sub,.sidebar-footer,.hint,.role,.meta-label,.group-label{font-size:12px;color:var(--muted);line-height:1.7}
+    .history{flex:1;overflow-y:auto;padding:12px;scrollbar-width:auto;scrollbar-color:#94a3b8 #e5e7eb}
+    .history::-webkit-scrollbar,.chat::-webkit-scrollbar,.modal-body::-webkit-scrollbar{width:12px;height:12px}
+    .history::-webkit-scrollbar-track,.chat::-webkit-scrollbar-track,.modal-body::-webkit-scrollbar-track{background:#e5e7eb;border-radius:999px}
+    .history::-webkit-scrollbar-thumb,.chat::-webkit-scrollbar-thumb,.modal-body::-webkit-scrollbar-thumb{background:#94a3b8;border-radius:999px;border:2px solid #e5e7eb}
+    .history-group{margin-bottom:14px}
+    .group-label{font-weight:700;margin:2px 4px 10px}
+    .history-item{padding:12px;border-radius:14px;margin-bottom:8px;border:1px solid transparent;background:transparent}
+    .history-item:hover{background:#eceff3}.history-item.active{background:#fff;border-color:var(--border)}
+    .history-row{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.history-main{flex:1;min-width:0;cursor:pointer}
+    .history-item-title{font-size:14px;font-weight:700;line-height:1.5;color:#1f2937;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+    .history-item-time{margin-top:6px;font-size:12px;color:var(--muted)}
+    .history-actions{display:flex;gap:6px;flex-shrink:0}.history-btn{width:28px;height:28px;color:#fff;font-weight:700}.rename{background:#3b82f6}.delete{background:var(--danger)}
+    .main{display:flex;flex-direction:column;height:100vh;background:#fff}
+    .topbar{min-height:60px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;padding:10px 20px;gap:12px;flex-wrap:wrap;background:rgba(255,255,255,.92);backdrop-filter:blur(8px)}
+    .top-title{font-size:16px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.top-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .top-mini-btn,.top-select{background:#eef2f7;color:#374151;padding:8px 12px;height:38px}.top-select{border:1px solid transparent;outline:none;border-radius:12px;min-width:220px}.top-status{font-size:13px;color:var(--muted)}
+    .chat{flex:1;overflow-y:auto;padding:28px 0 40px}.chat-inner,.composer{width:min(920px,calc(100% - 32px));margin:0 auto}
+    .welcome{text-align:center;color:var(--muted);padding:64px 20px 24px}.welcome-title{font-size:28px;font-weight:800;color:#1f2937;margin-bottom:10px}
+    .welcome-examples{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:20px}.chip{padding:10px 16px;border-radius:999px;border:1px solid var(--border);background:#fff;cursor:pointer;font-size:14px;color:#374151}
+    .message-row{display:flex;gap:14px;align-items:flex-start;margin-bottom:28px}.avatar{width:34px;min-width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:14px;font-weight:700}.user{background:#2563eb}.bot{background:var(--primary)}
+    .bubble-wrap{flex:1;min-width:0}.bubble{border-radius:16px;padding:16px 18px;line-height:1.9;font-size:16px;border:1px solid var(--border);white-space:pre-wrap;word-break:break-word;background:#f8fafc}
+    .answer-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}.mini-btn{background:#eef2f7;color:#374151;padding:8px 12px}
+    .meta-box{margin-top:12px;border:1px solid var(--border);border-radius:14px;background:#fafafa;overflow:hidden}.meta-header{padding:10px 14px;background:#f3f4f6;font-size:13px;font-weight:700;color:#374151;display:flex;justify-content:space-between;cursor:pointer}.meta-content{display:none;padding:14px}.meta-content.show{display:block}
+    .meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:14px}.meta-item{background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px}.meta-value{font-size:14px;line-height:1.7;word-break:break-word}
+    .hint-card,.evidence-card{padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.8}.hint-card{border-left:4px solid var(--info);background:#eff6ff;color:#1e3a8a}.evidence-card{border:1px solid var(--border);background:#fff}
+    .composer-wrap{border-top:1px solid var(--border);background:#fff;padding:16px 0 20px}.composer-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap}.composer-modes{display:flex;gap:10px;flex-wrap:wrap}
+    .toggle-chip{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;height:38px;border-radius:12px;background:#eef2f7;color:#374151;font-size:13px;user-select:none;cursor:pointer}.toggle-chip input{accent-color:var(--primary);width:16px;height:16px;margin:0}
+    .input-box{display:flex;gap:10px;align-items:flex-end;border:1px solid var(--border);border-radius:20px;padding:12px;background:#fff;box-shadow:var(--shadow)} textarea.msg{flex:1;border:none;resize:none;outline:none;font-size:16px;line-height:1.7;min-height:28px;max-height:180px;font-family:inherit;background:transparent}
+    .send-btn{width:46px;height:46px;background:var(--primary);color:#fff;font-size:18px;font-weight:700}.send-btn:hover{background:var(--primary-hover)}.send-btn:disabled{opacity:.65;cursor:not-allowed}.error{color:#d93025}
+    .typing{display:inline-flex;gap:6px;align-items:center}.dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;animation:pulse 1.2s infinite ease-in-out}.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}@keyframes pulse{0%,80%,100%{opacity:.35;transform:scale(.75)}40%{opacity:1;transform:scale(1)}}
+    .modal-mask{position:fixed;inset:0;background:rgba(15,23,42,.42);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}.modal-mask.show{display:flex}.modal{width:min(980px,100%);max-height:88vh;overflow:hidden;background:#fff;border-radius:20px;box-shadow:0 18px 60px rgba(15,23,42,.18);border:1px solid var(--border);display:flex;flex-direction:column}
+    .modal-header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:12px}.modal-title{font-size:16px;font-weight:800}.modal-sub{font-size:12px;color:var(--muted);margin-top:4px}.close-btn{background:#eef2f7;color:#374151;width:36px;height:36px}
+    .modal-body{padding:18px;overflow:auto}.section-title{font-size:14px;font-weight:700;margin:0 0 10px}.provider-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:18px}.provider-card{border:1px solid var(--border);border-radius:14px;padding:12px;background:#f8fafc;cursor:pointer}.provider-card:hover{border-color:#cbd5e1;background:#fff}.provider-name{font-size:14px;font-weight:700;margin-bottom:6px}.provider-desc{font-size:12px;color:var(--muted);line-height:1.6}
+    .form-card{border:1px solid var(--border);border-radius:16px;padding:14px;background:#fbfdff}.config-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.config-item{display:flex;flex-direction:column;gap:6px}.config-item.full{grid-column:1 / -1}.config-input,.config-select,.config-textarea{border:1px solid var(--border);background:#fff;color:#111827;font-size:14px;padding:10px 12px;border-radius:12px;font-family:inherit}.config-textarea{min-height:72px;resize:vertical}
+    .row-actions,.saved-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.primary-btn{background:var(--primary);color:#fff;padding:10px 14px}.ghost-btn{background:#eef2f7;color:#374151;padding:10px 14px}.saved-list{display:grid;gap:10px;margin-top:16px}.saved-item{border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff}.saved-top{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.saved-name{font-size:14px;font-weight:700}.saved-meta{margin-top:6px;color:var(--muted);font-size:12px;line-height:1.7;word-break:break-all}.tag{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2f7;font-size:12px;color:#475569;margin-right:6px}
+
+    .graph-modal{position:fixed;inset:0;background:rgba(17,24,39,.45);display:none;align-items:center;justify-content:center;z-index:80;padding:20px}
+    .graph-modal.show{display:flex}
+    .graph-box{width:min(1040px,95vw);height:min(720px,90vh);background:#fff;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:hidden}
+    .graph-head{height:58px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-weight:700}
+    .graph-close{border:none;background:#eef2f7;border-radius:10px;padding:8px 12px;cursor:pointer}
+    .graph-canvas-wrap{flex:1;min-height:420px;background:#f8fafc}
+    #graphNetwork{width:100%;height:100%;min-height:420px}
+    .badge{display:inline-block;padding:2px 8px;border-radius:999px;color:#fff;font-size:12px;margin-right:6px}
+    .badge.rag{background:#0891b2}.badge.kg{background:#7c3aed}.badge.fusion{background:#059669}
+    .icon-font{display:inline-flex;align-items:center;justify-content:center;line-height:1;font-size:14px}
+    .new-chat-btn .icon-font{margin-right:6px}
+    .search-box .icon-font{color:var(--muted);flex-shrink:0}
+    .send-btn .icon-font{font-size:17px}
+    .history-btn .icon-font,.close-btn .icon-font{font-size:14px}
+
+    @media (max-width:960px){.app{grid-template-columns:1fr}.sidebar{display:none}.meta-grid,.config-grid,.provider-grid{grid-template-columns:1fr}.topbar{padding:10px 14px}.modal{max-height:92vh}}
+
+    /* ===== Unified visual compatibility aliases ===== */
+    .icon,.icon-inline,.search-icon{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      line-height:1;
+      font-size:14px;
+      flex-shrink:0;
+    }
+    .search-box .icon,.search-box .icon-inline,.search-box .search-icon{
+      color:var(--muted);
+      flex:0 0 auto;
+    }
+    .new-chat-btn,.top-mini-btn,.mini-btn,.primary-btn,.ghost-btn,.send-btn,.close-btn,.history-btn,.graph-close{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+    }
+    .send-btn .icon,.send-btn .icon-inline,.send-btn .icon-font{font-size:17px}
+    .history-btn .icon,.history-btn .icon-inline,.history-btn .icon-font,
+    .close-btn .icon,.close-btn .icon-inline,.close-btn .icon-font{font-size:14px;pointer-events:none}
+    .graph-body,.graph-canvas-wrap{flex:1;min-height:420px;background:#f8fafc;position:relative;overflow:auto}
+    .graph-body #graphNetwork,.graph-canvas-wrap #graphNetwork{width:100%;height:100%;min-height:420px}
+    .evidence-title{font-size:13px;font-weight:700;color:#374151;margin-bottom:10px}
+    .evidence-text{font-size:14px;line-height:1.8;color:#4b5563}
+    .code-box{
+      background:#111827;
+      color:#e5e7eb;
+      border-radius:12px;
+      padding:12px;
+      font-family:Consolas,monospace;
+      font-size:12px;
+      line-height:1.7;
+      white-space:pre-wrap;
+      word-break:break-word;
+      max-height:260px;
+      overflow:auto;
+      margin-bottom:14px;
+    }
+    .button-icon{pointer-events:none}
+    .top-mini-btn i,.mini-btn i,.primary-btn i,.ghost-btn i,.graph-close i,.new-chat-btn i{pointer-events:none}
+    textarea:not(.msg){
+      flex:1;
+      border:none;
+      resize:none;
+      outline:none;
+      font-size:16px;
+      line-height:1.7;
+      min-height:28px;
+      max-height:180px;
+      font-family:inherit;
+      background:transparent;
+    }
+    .history-title{
+      font-size:12px;
+      color:var(--muted);
+      font-weight:700;
+      margin:2px 4px 10px;
+    }
+    .top-mini-btn:hover,.mini-btn:hover,.ghost-btn:hover,.graph-close:hover,.close-btn:hover,.toggle-chip:hover{
+      background:#e5ebf3;
+    }
+    .chip:hover,.provider-card:hover{
+      background:#fff;
+      border-color:#cbd5e1;
+    }
+
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand-box">
+        <div class="brand">基于纯知识图谱的糖尿病问答系统</div>
+        <div class="brand-sub">
+          基于 Neo4j 知识图谱与 FastAPI 后端，实现糖尿病相关疾病、症状、治疗、病因、检查等自然语言问答。
+        </div>
+      </div>
+      <div class="sidebar-top">
+        <button id="newChatBtn" class="new-chat-btn"><i class="fa-solid fa-plus icon-font" aria-hidden="true"></i>新建会话</button>
+        <div class="search-box"><span class="icon-inline" aria-hidden="true"><i class="fa-solid fa-magnifying-glass"></i></span><input id="historySearchInput" placeholder="搜索历史会话标题或消息内容" /></div>
+      </div>
+      <div class="history">
+        <div class="history-title">历史对话</div>
+        <div id="historyList"></div>
+      </div>
+
+      <div class="sidebar-footer">
+        后端地址：<span id="apiBaseText"></span>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="topbar">
+        <div class="top-title" id="topTitle">新对话</div>
+        <div class="top-right">
+          <button id="renameSessionBtn" class="top-mini-btn"><i class="fa-solid fa-pen-to-square icon-font" aria-hidden="true"></i> 重命名会话</button>
+          <button id="exportTextBtn" class="top-mini-btn"><i class="fa-solid fa-file-lines icon-font" aria-hidden="true"></i> 导出文本</button>
+          <button id="exportImageBtn" class="top-mini-btn"><i class="fa-solid fa-image icon-font" aria-hidden="true"></i> 导出截图</button>
+          <div class="top-status">知识图谱问答</div>
+        </div>
+      </div>
+
+      <div class="chat" id="chat">
+        <div class="chat-inner" id="chatInner">
+          <div class="welcome">
+            <div class="welcome-title">今天想了解什么？</div>
+            <div>你可以提问疾病定义、症状、治疗、病因、检查、英文名、不良反应等问题。</div>
+            <div class="welcome-examples">
+              <div class="chip">糖尿病视网膜病变的主要症状是什么？</div>
+              <div class="chip">格列本脲有哪些不良反应？</div>
+              <div class="chip">妊娠期糖尿病的英文名称是什么？</div>
+              <div class="chip">2型糖尿病相关药物有哪些？</div>
+              <div class="chip">糖尿病的治疗方法有哪些？</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer-wrap">
+        <div class="composer">
+          <div class="input-box">
+            <textarea id="questionInput" rows="1" placeholder="输入你的问题，按 Enter 发送，Shift + Enter 换行"></textarea>
+            <button id="sendBtn" class="send-btn" aria-label="发送"><i class="fa-solid fa-paper-plane icon-font" aria-hidden="true"></i></button>
+          </div>
+          <div id="errorBox" class="hint error"></div>
+          <div class="hint">支持会话管理、证据链、交互式图谱可视化、文本导出与截图导出。</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div id="graphModal" class="graph-modal">
+    <div class="graph-box">
+      <div class="graph-head">
+        <span>图谱可视化</span>
+        <button id="graphCloseBtn" class="graph-close"><i class="fa-solid fa-xmark icon-font" aria-hidden="true"></i> 关闭</button>
+      </div>
+      <div class="graph-canvas-wrap">
+        <div id="graphNetwork"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = "http://127.0.0.1:8000";
+    const STORAGE_KEY = "dm_kg_chat_sessions_v2";
+
+    const chat = document.getElementById("chat");
+    const chatInner = document.getElementById("chatInner");
+    const questionInput = document.getElementById("questionInput");
+    const sendBtn = document.getElementById("sendBtn");
+    const errorBox = document.getElementById("errorBox");
+    const apiBaseText = document.getElementById("apiBaseText");
+    const historyList = document.getElementById("historyList");
+    const historySearchInput = document.getElementById("historySearchInput");
+    const newChatBtn = document.getElementById("newChatBtn");
+    const topTitle = document.getElementById("topTitle");
+    const renameSessionBtn = document.getElementById("renameSessionBtn");
+    const exportTextBtn = document.getElementById("exportTextBtn");
+    const exportImageBtn = document.getElementById("exportImageBtn");
+
+    const graphModal = document.getElementById("graphModal");
+    const graphCloseBtn = document.getElementById("graphCloseBtn");
+    const graphNetworkContainer = document.getElementById("graphNetwork");
+
+    apiBaseText.textContent = API_BASE;
+
+    let graphNetworkInstance = null;
+    let sessions = loadSessions();
+    let currentSessionId = sessions.length ? sessions[0].id : createSession("新对话").id;
+    let historyKeyword = "";
+
+    function loadSessions() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+      } catch {
+        return [];
+      }
+    }
+
+    function saveSessions() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    }
+
+    function createSession(title = "新对话") {
+      const session = {
+        id: "s_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7),
+        title,
+        created_at: new Date().toISOString(),
+        messages: []
+      };
+      sessions.unshift(session);
+      saveSessions();
+      return session;
+    }
+
+    function getCurrentSession() {
+      return sessions.find(s => s.id === currentSessionId);
+    }
+
+    function setCurrentSession(id) {
+      currentSessionId = id;
+      renderHistory();
+      renderCurrentSession();
+      bindMessageActionButtons();
+    }
+
+    function formatTime(iso) {
+      const d = new Date(iso);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      const h = String(d.getHours()).padStart(2, "0");
+      const min = String(d.getMinutes()).padStart(2, "0");
+      return `${y}-${m}-${day} ${h}:${min}`;
+    }
+
+    function escapeHtml(str) {
+      return String(str || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function autoResize(el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 180) + "px";
+    }
+
+    function scrollToBottom() {
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function clearWelcome() {
+      const welcome = chatInner.querySelector(".welcome");
+      if (welcome) welcome.remove();
+    }
+
+    function renderHistory() {
+      const keyword = historyKeyword.trim().toLowerCase();
+      const filteredSessions = sessions.filter(s => {
+        if (!keyword) return true;
+
+        const title = String(s.title || "").toLowerCase();
+        const messageText = (s.messages || [])
+          .map(m => String(m.content || ""))
+          .join(" ")
+          .toLowerCase();
+
+        return title.includes(keyword) || messageText.includes(keyword);
+      });
+
+      historyList.innerHTML = filteredSessions.map(s => `
+        <div class="history-item ${s.id === currentSessionId ? "active" : ""}">
+          <div class="history-row">
+            <div class="history-main" onclick="selectSession('${s.id}')">
+              <div class="history-item-title">${escapeHtml(s.title || "新对话")}</div>
+              <div class="history-item-time">${formatTime(s.created_at)}</div>
+            </div>
+            <div class="history-actions">
+              <button class="history-btn rename" title="重命名" aria-label="重命名" onclick="renameSession('${s.id}')"><i class="fa-solid fa-pen button-icon" aria-hidden="true"></i></button>
+              <button class="history-btn delete" title="删除" aria-label="删除" onclick="deleteSession('${s.id}')"><i class="fa-solid fa-trash button-icon" aria-hidden="true"></i></button>
+            </div>
+          </div>
+        </div>
+      `).join("");
+
+      if (!filteredSessions.length) {
+        historyList.innerHTML = `
+          <div style="padding:12px;color:#6b7280;font-size:13px;line-height:1.7;">
+            没有匹配的会话
+          </div>
+        `;
+      }
+    }
+
+    function renderCurrentSession() {
+      const session = getCurrentSession();
+      chatInner.innerHTML = "";
+      topTitle.textContent = session?.title || "新对话";
+
+      if (!session || !session.messages.length) {
+        chatInner.innerHTML = `
+          <div class="welcome">
+            <div class="welcome-title">今天想了解什么？</div>
+            <div>你可以提问疾病定义、症状、治疗、病因、检查、英文名、不良反应等问题。</div>
+            <div class="welcome-examples">
+              <div class="chip">糖尿病视网膜病变的主要症状是什么？</div>
+              <div class="chip">格列本脲有哪些不良反应？</div>
+              <div class="chip">妊娠期糖尿病的英文名称是什么？</div>
+              <div class="chip">2型糖尿病相关药物有哪些？</div>
+              <div class="chip">糖尿病的治疗方法有哪些？</div>
+            </div>
+          </div>
+        `;
+        bindChips();
+        return;
+      }
+
+      let botIndex = 0;
+      session.messages.forEach(msg => {
+        if (msg.role === "user") {
+          chatInner.insertAdjacentHTML("beforeend", renderUserHtml(msg.content));
+        } else {
+          chatInner.insertAdjacentHTML("beforeend", renderBotHtml(msg, botIndex));
+          botIndex++;
+        }
+      });
+
+      scrollToBottom();
+    }
+
+    function renderUserHtml(text) {
+      return `
+        <div class="message-row">
+          <div class="avatar user">问</div>
+          <div class="bubble-wrap">
+            <div class="role">你</div>
+            <div class="bubble user">${escapeHtml(text)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderEvidence(items) {
+      if (!items || !items.length) {
+        return `<div class="evidence-text">暂无可展示证据链。</div>`;
+      }
+
+      return `
+        <div class="evidence-list">
+          ${items.map(item => `
+            <div class="evidence-card">
+              <div class="chain-line">
+                <span class="tag">${escapeHtml(item.center_etype_zh || item.center_etype || "实体")}</span>
+                ${escapeHtml(item.center_name || "未知实体")}
+                <i class="fa-solid fa-arrow-right evidence-arrow" aria-hidden="true"></i>
+                <span class="tag">${escapeHtml(item.rel_type_zh || item.rel_type || "关系")}</span>
+                <i class="fa-solid fa-arrow-right evidence-arrow" aria-hidden="true"></i>
+                ${escapeHtml(item.neighbor_name || "未知实体")}
+                <span class="tag">${escapeHtml(item.neighbor_etype_zh || item.neighbor_etype || "实体")}</span>
+              </div>
+              <div class="evidence-text">${escapeHtml(item.evidence || "暂无证据文本。")}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function renderBotHtml(msg, index) {
+      const metaId = "meta_" + Math.random().toString(36).slice(2);
+
+      return `
+        <div class="message-row">
+          <div class="avatar bot">答</div>
+          <div class="bubble-wrap">
+            <div class="role">系统</div>
+            <div class="bubble bot">${escapeHtml(msg.content || "")}</div>
+
+            <div class="answer-actions">
+              <button class="mini-btn copy-btn" data-index="${index}">复制回答</button>
+              <button class="mini-btn graph-btn" data-index="${index}">图谱可视化</button>
+            </div>
+
+            <div class="meta-box">
+              <div class="meta-header" onclick="toggleMeta('${metaId}')">
+                <span>查看推理细节与证据链</span>
+                <span>展开 / 收起</span>
+              </div>
+              <div class="meta-content" id="${metaId}">
+                <div class="meta-grid">
+                  <div class="meta-item">
+                    <div class="meta-label">识别实体</div>
+                    <div class="meta-value">${escapeHtml(msg.entity || "未识别")}</div>
+                  </div>
+                  <div class="meta-item">
+                    <div class="meta-label">问题类型</div>
+                    <div class="meta-value">${escapeHtml(msg.intent || "-")}</div>
+                  </div>
+                  <div class="meta-item">
+                    <div class="meta-label">检索结果数</div>
+                    <div class="meta-value">${escapeHtml(msg.retrieved_count ?? "-")}</div>
+                  </div>
+                  <div class="meta-item">
+                    <div class="meta-label">总响应时间</div>
+                    <div class="meta-value">${escapeHtml(msg.total_time_sec ?? "-")} 秒</div>
+                  </div>
+                  <div class="meta-item">
+                    <div class="meta-label">检索耗时</div>
+                    <div class="meta-value">${escapeHtml(msg.retrieval_time_sec ?? "-")} 秒</div>
+                  </div>
+                  <div class="meta-item">
+                    <div class="meta-label">生成耗时</div>
+                    <div class="meta-value">${escapeHtml(msg.generation_time_sec ?? "-")} 秒</div>
+                  </div>
+                </div>
+
+                <div class="evidence-title">Cypher 查询</div>
+                <div class="code-box">${escapeHtml(msg.cypher || "无")}</div>
+
+                <div class="evidence-title">证据链</div>
+                ${renderEvidence(msg.evidence_chain || [])}
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function bindMessageActionButtons() {
+      const session = getCurrentSession();
+      if (!session) return;
+
+      const botMessages = session.messages.filter(m => m.role === "bot");
+
+      chatInner.querySelectorAll(".copy-btn").forEach(btn => {
+        btn.onclick = async () => {
+          const idx = Number(btn.dataset.index);
+          const text = botMessages[idx]?.content || "";
+          try {
+            await navigator.clipboard.writeText(text);
+            btn.textContent = "已复制";
+            setTimeout(() => btn.textContent = "复制回答", 1200);
+          } catch {
+            btn.textContent = "复制失败";
+            setTimeout(() => btn.textContent = "复制回答", 1200);
+          }
+        };
+      });
+
+      chatInner.querySelectorAll(".graph-btn").forEach(btn => {
+        btn.onclick = () => {
+          const idx = Number(btn.dataset.index);
+          openGraphModal(botMessages[idx]?.evidence_chain || []);
+        };
+      });
+    }
+
+    window.toggleMeta = function(id) {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle("show");
+    };
+
+    function addUserMessageToSession(text) {
+      const session = getCurrentSession();
+      if (!session) return;
+
+      if (!session.messages.length) {
+        session.title = text.length > 18 ? text.slice(0, 18) + "..." : text;
+        topTitle.textContent = session.title;
+      }
+
+      session.messages.push({
+        role: "user",
+        content: text,
+        created_at: new Date().toISOString()
+      });
+
+      saveSessions();
+      renderHistory();
+      clearWelcome();
+      chatInner.insertAdjacentHTML("beforeend", renderUserHtml(text));
+      scrollToBottom();
+    }
+
+    function addBotLoading() {
+      const id = "loading_" + Date.now();
+      chatInner.insertAdjacentHTML("beforeend", `
+        <div class="message-row" id="${id}">
+          <div class="avatar bot">答</div>
+          <div class="bubble-wrap">
+            <div class="role">系统</div>
+            <div class="bubble bot">
+              <span class="typing">
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+              </span>
+            </div>
+          </div>
+        </div>
+      `);
+      scrollToBottom();
+      return id;
+    }
+
+    async function typewriter(el, text, speed = 12) {
+      el.textContent = "";
+      for (let i = 0; i < text.length; i++) {
+        el.textContent += text[i];
+        scrollToBottom();
+        await new Promise(r => setTimeout(r, speed));
+      }
+    }
+
+    async function addBotMessageToSession(data, loadingId) {
+      const loadingEl = document.getElementById(loadingId);
+      if (loadingEl) loadingEl.remove();
+
+      const session = getCurrentSession();
+      if (!session) return;
+
+      const botMsg = {
+        role: "bot",
+        content: data.answer || "未返回答案。",
+        entity: data.entity || "",
+        intent: data.intent || "",
+        retrieved_count: data.retrieved_count ?? 0,
+        retrieval_time_sec: data.retrieval_time_sec ?? 0,
+        generation_time_sec: data.generation_time_sec ?? 0,
+        total_time_sec: data.total_time_sec ?? 0,
+        cypher: data.cypher || "",
+        evidence_chain: data.evidence_chain || [],
+        created_at: new Date().toISOString()
+      };
+
+      session.messages.push(botMsg);
+      saveSessions();
+      renderHistory();
+
+      clearWelcome();
+
+      const tempId = "bot_" + Date.now();
+      chatInner.insertAdjacentHTML("beforeend", `
+        <div class="message-row" id="${tempId}">
+          <div class="avatar bot">答</div>
+          <div class="bubble-wrap">
+            <div class="role">系统</div>
+            <div class="bubble bot" id="${tempId}_bubble"></div>
+          </div>
+        </div>
+      `);
+      scrollToBottom();
+
+      const bubble = document.getElementById(`${tempId}_bubble`);
+      await typewriter(bubble, botMsg.content, 10);
+
+      const tempRow = document.getElementById(tempId);
+      if (tempRow) tempRow.remove();
+
+      const botMessages = session.messages.filter(m => m.role === "bot");
+      chatInner.insertAdjacentHTML("beforeend", renderBotHtml(botMsg, botMessages.length - 1));
+      bindMessageActionButtons();
+      scrollToBottom();
+    }
+
+    async function askQuestion(prefill = null) {
+      const question = (prefill ?? questionInput.value).trim();
+      if (!question) return;
+
+      errorBox.textContent = "";
+      addUserMessageToSession(question);
+
+      questionInput.value = "";
+      autoResize(questionInput);
+      sendBtn.disabled = true;
+
+      const loadingId = addBotLoading();
+
+      try {
+        const response = await fetch(`${API_BASE}/qa`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question })
+        });
+
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(`请求失败：${response.status} ${text}`);
+        }
+
+        const data = await response.json();
+        console.log("后端返回：", data);
+        await addBotMessageToSession(data, loadingId);
+      } catch (err) {
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+
+        const session = getCurrentSession();
+        if (session) {
+          session.messages.push({
+            role: "bot",
+            content: "请求失败，请检查后端服务或接口地址。",
+            entity: "",
+            intent: "error",
+            retrieved_count: 0,
+            retrieval_time_sec: 0,
+            generation_time_sec: 0,
+            total_time_sec: 0,
+            cypher: "",
+            evidence_chain: [],
+            created_at: new Date().toISOString()
+          });
+          saveSessions();
+        }
+
+        renderCurrentSession();
+        bindMessageActionButtons();
+        errorBox.textContent = err.message || "发生未知错误。";
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    function bindChips() {
+      document.querySelectorAll(".chip").forEach(item => {
+        item.onclick = () => askQuestion(item.textContent.trim());
+      });
+    }
+
+    function selectSession(id) {
+      setCurrentSession(id);
+    }
+    window.selectSession = selectSession;
+
+    function deleteSession(id) {
+      const target = sessions.find(s => s.id === id);
+      if (!target) return;
+
+      const ok = confirm(`确定删除会话“${target.title || "新对话"}”吗？`);
+      if (!ok) return;
+
+      sessions = sessions.filter(s => s.id !== id);
+
+      if (sessions.length === 0) {
+        const newSession = createSession("新对话");
+        currentSessionId = newSession.id;
+      } else if (currentSessionId === id) {
+        currentSessionId = sessions[0].id;
+      }
+
+      saveSessions();
+      renderHistory();
+      renderCurrentSession();
+      bindChips();
+      bindMessageActionButtons();
+    }
+    window.deleteSession = deleteSession;
+
+    function renameSession(id) {
+      const target = sessions.find(s => s.id === id);
+      if (!target) return;
+
+      const newTitle = prompt("请输入新的会话名称：", target.title || "新对话");
+      if (newTitle === null) return;
+
+      const title = newTitle.trim();
+      if (!title) {
+        alert("会话名称不能为空。");
+        return;
+      }
+
+      target.title = title;
+      saveSessions();
+      renderHistory();
+      renderCurrentSession();
+      bindMessageActionButtons();
+    }
+    window.renameSession = renameSession;
+
+
+    historySearchInput.addEventListener("input", (e) => {
+      historyKeyword = (e.target.value || "").trim();
+      renderHistory();
+    });
+
+    newChatBtn.addEventListener("click", () => {
+      const session = createSession("新对话");
+      currentSessionId = session.id;
+      saveSessions();
+      renderHistory();
+      renderCurrentSession();
+      questionInput.focus();
+    });
+
+    renameSessionBtn.addEventListener("click", () => {
+      const session = getCurrentSession();
+      if (!session) return;
+      renameSession(session.id);
+    });
+
+    sendBtn.addEventListener("click", () => askQuestion());
+
+    questionInput.addEventListener("input", () => autoResize(questionInput));
+
+    questionInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        askQuestion();
+      }
+    });
+
+    exportTextBtn.addEventListener("click", () => {
+      const session = getCurrentSession();
+      if (!session) return;
+
+      let content = `糖尿病知识图谱问答系统\n`;
+      content += `会话名称：${session.title}\n`;
+      content += `创建时间：${formatTime(session.created_at)}\n\n`;
+
+      session.messages.forEach(msg => {
+        if (msg.role === "user") {
+          content += `【用户】${msg.content}\n\n`;
+        } else {
+          content += `【系统】${msg.content}\n`;
+          content += `问题类型：${msg.intent || "-"}\n`;
+          content += `识别实体：${msg.entity || "-"}\n`;
+          content += `总响应时间：${msg.total_time_sec || 0} 秒\n`;
+          content += `Cypher：${msg.cypher || "无"}\n`;
+
+          if (msg.evidence_chain && msg.evidence_chain.length) {
+            content += `证据链：\n`;
+            msg.evidence_chain.forEach((item, idx) => {
+              content += `  ${idx + 1}. ${item.center_name || "未知"} -> ${item.rel_type_zh || item.rel_type || "关系"} -> ${item.neighbor_name || "未知"}\n`;
+              content += `     证据：${item.evidence || "暂无"}\n`;
+            });
+          }
+          content += `\n`;
+        }
+      });
+
+      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${session.title || "会话记录"}.txt`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    exportImageBtn.addEventListener("click", async () => {
+      const session = getCurrentSession();
+      if (!session) return;
+
+      const target = document.getElementById("chatInner");
+      try {
+        const canvas = await html2canvas(target, {
+          backgroundColor: "#ffffff",
+          scale: 2,
+          useCORS: true
+        });
+
+        const a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png");
+        a.download = `${session.title || "会话截图"}.png`;
+        a.click();
+      } catch (e) {
+        alert("截图导出失败，请稍后重试。");
+      }
+    });
+
+    function openGraphModal(evidenceChain) {
+      graphModal.classList.add("show");
+      setTimeout(() => drawInteractiveGraph(evidenceChain || []), 50);
+    }
+
+    function closeGraphModal() {
+      graphModal.classList.remove("show");
+      if (graphNetworkInstance) {
+        graphNetworkInstance.destroy();
+        graphNetworkInstance = null;
+      }
+      graphNetworkContainer.innerHTML = "";
+    }
+
+    graphCloseBtn.addEventListener("click", closeGraphModal);
+    graphModal.addEventListener("click", (e) => {
+      if (e.target === graphModal) closeGraphModal();
+    });
+
+    function drawInteractiveGraph(items) {
+      if (typeof vis === "undefined") {
+        graphNetworkContainer.innerHTML = `
+          <div style="padding:40px;color:#ef4444;font-size:16px;">
+            vis-network 库未加载，请检查脚本路径或网络连接
+          </div>
+        `;
+        return;
+      }
+
+      if (!items || !items.length) {
+        graphNetworkContainer.innerHTML = `
+          <div style="padding:40px;color:#6b7280;font-size:16px;">
+            暂无可视化证据链
+          </div>
+        `;
+        return;
+      }
+
+      if (graphNetworkInstance) {
+        graphNetworkInstance.destroy();
+        graphNetworkInstance = null;
+      }
+      graphNetworkContainer.innerHTML = "";
+
+      const nodeMap = new Map();
+      const edges = [];
+
+      items.forEach((item, idx) => {
+        const a = item.center_name || "未知实体";
+        const b = item.neighbor_name || "未知实体";
+        const aType = item.center_etype_zh || item.center_etype || "实体";
+        const bType = item.neighbor_etype_zh || item.neighbor_etype || "实体";
+        const rel = item.rel_type_zh || item.rel_type || "关系";
+        const ev = item.evidence || "";
+
+        if (!nodeMap.has(a)) {
+          nodeMap.set(a, {
+            id: a,
+            label: a,
+            title: `${aType}：${a}`,
+            group: aType
+          });
+        }
+
+        if (!nodeMap.has(b)) {
+          nodeMap.set(b, {
+            id: b,
+            label: b,
+            title: `${bType}：${b}`,
+            group: bType
+          });
+        }
+
+        edges.push({
+          id: "e_" + idx,
+          from: a,
+          to: b,
+          label: rel,
+          arrows: "to",
+          title: ev
+        });
+      });
+
+      const nodes = new vis.DataSet(Array.from(nodeMap.values()));
+      const edgeSet = new vis.DataSet(edges);
+
+      const data = { nodes, edges: edgeSet };
+
+      const options = {
+        autoResize: true,
+        interaction: {
+          hover: true,
+          dragNodes: true,
+          dragView: true,
+          zoomView: true
+        },
+        physics: {
+          enabled: true,
+          barnesHut: {
+            gravitationalConstant: -3500,
+            springLength: 140,
+            springConstant: 0.04
+          },
+          stabilization: {
+            iterations: 120
+          }
+        },
+        nodes: {
+          shape: "dot",
+          size: 22,
+          font: {
+            size: 14,
+            face: "Microsoft YaHei",
+            color: "#111827"
+          },
+          borderWidth: 2,
+          shadow: true
+        },
+        edges: {
+          font: {
+            size: 12,
+            align: "middle",
+            color: "#374151"
+          },
+          color: {
+            color: "#94a3b8",
+            highlight: "#10a37f"
+          },
+          smooth: {
+            type: "dynamic"
+          }
+        },
+        groups: {
+          疾病: { color: { background: "#fee2e2", border: "#ef4444" } },
+          药物: { color: { background: "#dbeafe", border: "#2563eb" } },
+          症状: { color: { background: "#dcfce7", border: "#16a34a" } },
+          不良反应: { color: { background: "#fef3c7", border: "#d97706" } },
+          检验指标: { color: { background: "#ede9fe", border: "#7c3aed" } },
+          发病机制: { color: { background: "#cffafe", border: "#0891b2" } },
+          检查: { color: { background: "#fce7f3", border: "#db2777" } },
+          解剖部位: { color: { background: "#f3e8ff", border: "#9333ea" } },
+          分类: { color: { background: "#e0f2fe", border: "#0284c7" } },
+          实体: { color: { background: "#e5e7eb", border: "#6b7280" } }
+        }
+      };
+
+      graphNetworkInstance = new vis.Network(graphNetworkContainer, data, options);
+
+      setTimeout(() => {
+        if (graphNetworkInstance) {
+          graphNetworkInstance.redraw();
+          graphNetworkInstance.fit({
+            animation: {
+              duration: 500,
+              easingFunction: "easeInOutQuad"
+            }
+          });
+        }
+      }, 120);
+
+      graphNetworkInstance.on("click", function(params) {
+        if (params.nodes.length > 0) {
+          const nodeId = params.nodes[0];
+          const node = nodes.get(nodeId);
+          if (node) {
+            alert(`节点：${node.label}\n类型：${node.group || "实体"}`);
+          }
+        } else if (params.edges.length > 0) {
+          const edgeId = params.edges[0];
+          const edge = edgeSet.get(edgeId);
+          if (edge) {
+            alert(`关系：${edge.label}\n证据：${edge.title || "暂无证据"}`);
+          }
+        }
+      });
+    }
+
+    if (!sessions.length) {
+      const session = createSession("新对话");
+      currentSessionId = session.id;
+      saveSessions();
+    }
+
+    renderHistory();
+    renderCurrentSession();
+    bindChips();
+    bindMessageActionButtons();
+  </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"7939e04a4baf43c8b86a560f74aac60e","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>

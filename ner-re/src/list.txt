@@ -1,0 +1,57 @@
+src/
+├── config/           # 配置文件
+│   ├── .env
+│   ├── config.py
+│   └── __init__.py
+├── data/             # 数据处理
+│   ├── data_loader.py
+│   ├── new4j_csv.py
+│   ├── postprocess.py
+│   └── __init__.py
+├── models/           # 模型训练
+│   ├── train_ner.py
+│   ├── train_re.py
+│   ├── train_qwen3_re_lora.py
+│   ├── train_qwen_ner_lora.py
+│   ├── train_glm4_re_lora.py
+│   ├── merge_qwen_lora.py
+│   ├── glm4_9b_ner_lora_full.py
+│   └── __init__.py
+├── evaluation/       # 评估脚本
+│   ├── evaluate_ner.py
+│   ├── evaluate_re.py
+│   ├── evaluate_glm_ner.py
+│   ├── eval_qwen_ie.py
+│   ├── eval_glm4_9b_ner_f1_full.py
+│   └── __init__.py
+├── inference/        # 推理预测
+│   ├── pipeline.py
+│   ├── predict_and_eval_qwen3_diakg.py
+│   ├── infer_and_eval_qwen3_re_lora.py
+│   ├── infer_and_eval_glm4_re_lora.py
+│   ├── predict_diakg_with_glm_lora_ner_full.py
+│   └── __init__.py
+├── utils/            # 工具类
+│   ├── utils.py
+│   ├── prompts.py
+│   ├── glm_client.py
+│   ├── glm_ner_extractor.py
+│   └── __init__.py
+├── analysis/         # 分析脚本
+│   ├── analyze_data.py
+│   ├── analyze_glm_ner_results.py
+│   └── __init__.py
+├── conversion/       # 数据转换
+│   ├── convert_diakg_to_qwen_re.py
+│   ├── convert_diakg_to_glm4_re.py
+│   ├── build_qwen_ner_sft.py
+│   └── __init__.py
+├── batch/            # 批处理
+│   ├── batch_glm_ner.py
+│   ├── glm_ner_batch.py
+│   └── __init__.py
+├── test/             # 测试文件
+│   ├── test.py
+│   ├── test_glm_connection.py
+│   └── __init__.py
+└── __init__.py
